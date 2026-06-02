@@ -1,0 +1,69 @@
+using SimpleNorthwind.Application.Abstractions.Persistence;
+using SimpleNorthwind.Application.Abstractions.Services;
+using SimpleNorthwind.Application.Customers;
+using SimpleNorthwind.Domain.Common;
+using SimpleNorthwind.Domain.Entities;
+
+namespace SimpleNorthwind.Application.Services;
+
+public sealed class CustomerService(ICustomerRepository customers) : ICustomerService
+{
+    public async Task<Result<CustomerDto>> CreateAsync(CreateCustomerRequest request, string actingUser, CancellationToken ct = default)
+    {
+        var customer = new Customer
+        {
+            CompanyName = request.CompanyName,
+            ContactNumber = request.ContactNumber,
+            ContactTitle = request.ContactTitle,
+            CreateDate = DateTime.UtcNow,
+            CreateUser = actingUser,
+            IsOutContacted = false,
+            OutContactedDate = null
+        };
+
+        customer.CustomerId = await customers.InsertAsync(customer, ct).ConfigureAwait(false);
+        return ToDto(customer);
+    }
+
+    public async Task<Result<CustomerDto>> UpdateAsync(int customerId, UpdateCustomerRequest request, CancellationToken ct = default)
+    {
+        var customer = await customers.GetByIdAsync(customerId, ct).ConfigureAwait(false);
+        if (customer is null)
+            return Error.NotFound("customer.not_found", $"找不到客戶 {customerId}。");
+
+        customer.CompanyName = request.CompanyName;
+        customer.ContactNumber = request.ContactNumber;
+        customer.ContactTitle = request.ContactTitle;
+        customer.IsOutContacted = request.IsOutContacted;
+        customer.OutContactedDate = request.OutContactedDate;
+
+        await customers.UpdateAsync(customer, ct).ConfigureAwait(false);
+        return ToDto(customer);
+    }
+
+    public async Task<Result> DeleteAsync(int customerId, CancellationToken ct = default)
+    {
+        var deleted = await customers.DeleteAsync(customerId, ct).ConfigureAwait(false);
+        return deleted
+            ? Result.Success()
+            : Result.Failure(Error.NotFound("customer.not_found", $"找不到客戶 {customerId}。"));
+    }
+
+    public async Task<Result<CustomerDto>> GetAsync(int customerId, CancellationToken ct = default)
+    {
+        var customer = await customers.GetByIdAsync(customerId, ct).ConfigureAwait(false);
+        if (customer is null)
+            return Error.NotFound("customer.not_found", $"找不到客戶 {customerId}。");
+
+        return ToDto(customer);
+    }
+
+    public async Task<IReadOnlyList<CustomerDto>> ListAsync(CancellationToken ct = default)
+    {
+        var customerList = await customers.ListAsync(ct).ConfigureAwait(false);
+        return customerList.Select(ToDto).ToList();
+    }
+
+    private static CustomerDto ToDto(Customer c) =>
+        new(c.CustomerId, c.CompanyName, c.ContactNumber, c.ContactTitle, c.CreateDate, c.CreateUser, c.IsOutContacted, c.OutContactedDate);
+}
