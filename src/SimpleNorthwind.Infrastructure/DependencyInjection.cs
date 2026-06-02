@@ -60,6 +60,10 @@ public static class DependencyInjection
         return services;
     }
 
+    /// <summary>機密加密 CLI 用：產生 enc: 密文（供 appsettings.Production.json 機密）。</summary>
+    public static string EncryptSecret(string plaintext) =>
+        EncPrefix + new AesSecretProtector(FindSecretKey()).Encrypt(plaintext);
+
     private static string Reveal(string value, ISecretProtector protector) =>
         value.StartsWith(EncPrefix, StringComparison.Ordinal)
             ? protector.Decrypt(value[EncPrefix.Length..])
