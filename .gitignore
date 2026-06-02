@@ -1,0 +1,29 @@
+## .NET build output
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+
+## Visual Studio / Rider / VS Code
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userprefs
+
+## Test results / coverage
+[Tt]est[Rr]esults/
+*.coverage
+*.coverage.xml
+coverage*.json
+coverage*.xml
+
+## 本機設定與機密（絕不入版控）
+appsettings.*.Local.json
+secret.decryption.key
+*.pfx
+*.snk
+
+## OS noise
+Thumbs.db
+.DS_Store

@@ -1,0 +1,18 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <UserSecretsId>f3f81635-f405-4eed-80f3-05a00b100c70</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.11" />
+    <PackageReference Include="Serilog.AspNetCore" Version="8.0.3" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SimpleNorthwind.Application\SimpleNorthwind.Application.csproj" />
+    <ProjectReference Include="..\SimpleNorthwind.Infrastructure\SimpleNorthwind.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>
