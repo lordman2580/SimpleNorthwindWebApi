@@ -1,7 +1,7 @@
 ---
 作者: Yell Huang
-日期: 2026/06/03 11:06:24
-版本: 1.00
+日期: 2026/06/03 11:30:00
+版本: 1.10
 ---
 
 # Simple Northwind WebApi
@@ -65,7 +65,7 @@ flowchart TB
 ## 快速開始
 
 ```powershell
-# 0) 本機第一次：設定 User Secrets（見下方「設定與連線字串」）
+# 0) 本機第一次：放置 AES 金鑰 secret.decryption.key 於 repo 根（見下方「設定與連線字串」）
 
 # 1) 建庫 + 套用 migration + 種子（idempotent，可重複跑）
 dotnet run --project src/SimpleNorthwind.Migrator
@@ -104,34 +104,32 @@ dotnet run --project src/SimpleNorthwind.Migrator
 
 ## 設定與連線字串（重要）
 
-連線字串 / 機密**依環境分流**，**絕不入版控**：
+**不使用 User Secrets**。設定一律放 `appsettings`（敏感值以 **AES-256-GCM `enc:` 密文**）或環境變數；唯一 out-of-band 機密是解密用的 **AES 金鑰**。
 
-| 環境 | `ASPNETCORE_ENVIRONMENT` | 連線字串 / 機密來源 |
-|---|---|---|
-| 本機開發 | `Development`（VS Debug 經 `launchSettings.json` 預設） | **User Secrets**（machine-local，不在 repo） |
-| 正式 | `Production` | `appsettings.Production.json` 的 `enc:` AES-256-GCM 密文（啟動時 `PostConfigure` 解密） |
+| 環境 | `ASPNETCORE_ENVIRONMENT` | 連線字串 | `Jwt:Secret` |
+|---|---|---|---|
+| 本機開發 | `Development`（VS Debug 經 `launchSettings.json` 預設） | `appsettings.Development.json`（LocalDB **明文**，Integrated Security 無帳密＝非敏感） | `appsettings.Development.json`（`enc:` 密文） |
+| 正式 | `Production` | `appsettings.Production.json`（`enc:` 密文）／Migrator 用環境變數 | `appsettings.Production.json`（`enc:` 密文） |
 
-- `appsettings.json`（基底）：**不含**任何連線字串 / 機密。
-- `appsettings.Development.json`：僅 Serilog 等級。
-- `appsettings.Production.json`：連線字串與 `Jwt:Secret` 為 `enc:` 密文。
-- **`Directory.Build.props` 是「編譯期」MSBuild 設定**（`TargetFramework` / `Nullable` / `ImplicitUsings` / `TreatWarningsAsErrors`），**與連線字串無關**。MSBuild 的 `Debug`/`Release` 是建置組態，**不等於** `ASPNETCORE_ENVIRONMENT` 的 `Development`/`Production`。
-
-> 因此：**VS 按 Debug 執行時連線字串來自 User Secrets**（因環境是 `Development`、且專案有 `UserSecretsId` 會自動載入），而非 `appsettings.Production.json`。Migrator 亦同（其 `Program.cs` 呼叫 `AddUserSecrets`，讀自己的 User Secrets）。
+- `appsettings.json`（基底）：**不含**連線字串 / 機密。
+- `enc:` 密文於啟動時由 `PostConfigure` 用 AES 金鑰解密；**金鑰**：dev 取 repo 根 `secret.decryption.key`（gitignored），prod 取環境變數 `APP_SECRET_KEY`。
+- 產生密文：`dotnet run --project src/SimpleNorthwind.WebApi -- encrypt "<明文>"`。
+- **`Directory.Build.props` 是「編譯期」MSBuild 設定**（`TargetFramework` / `Nullable` / `TreatWarningsAsErrors`），**與連線字串無關**。MSBuild 的 `Debug`/`Release`（建置組態）**不等於** `ASPNETCORE_ENVIRONMENT` 的 `Development`/`Production`（執行環境）。
+- Migrator 不參考 Infrastructure（無法解 `enc:`）：連線字串走自己的 `appsettings.json`（dev LocalDB 明文）；prod 以環境變數 `ConnectionStrings__SimpleNorthwind` 覆寫。
 
 ### 本機第一次設定（clone 後必做）
 
-連線字串在 User Secrets，新環境需自行設定（dev 用 LocalDB + Windows 驗證，無帳密）：
+連線字串已隨 `appsettings.Development.json` 入版控（LocalDB 明文），**DB 開箱即用**。唯一需準備的是解密 `Jwt:Secret` 的 **AES 金鑰**：
 
 ```powershell
-# WebApi
-dotnet user-secrets set "ConnectionStrings:SimpleNorthwind" "Server=(localdb)\MSSQLLocalDB;Database=SimpleNorthwind;Integrated Security=True;TrustServerCertificate=True" --project src/SimpleNorthwind.WebApi
-dotnet user-secrets set "Jwt:Secret" "<至少 32 字元的測試金鑰>" --project src/SimpleNorthwind.WebApi
-
-# Migrator（同一條連線字串）
-dotnet user-secrets set "ConnectionStrings:SimpleNorthwind" "Server=(localdb)\MSSQLLocalDB;Database=SimpleNorthwind;Integrated Security=True;TrustServerCertificate=True" --project src/SimpleNorthwind.Migrator
+# 二擇一：放金鑰檔到 repo 根，或設環境變數
+# (A) 金鑰檔（與既有 enc: 密文搭配；金鑰內容需與當初加密時一致）
+Set-Content -Path secret.decryption.key -Value "<AES 金鑰>" -NoNewline
+# (B) 環境變數
+$env:APP_SECRET_KEY = "<AES 金鑰>"
 ```
 
-> 正式環境機密以 `enc:` 密文放 `appsettings.Production.json`；產生密文：`dotnet run --project src/SimpleNorthwind.WebApi -- encrypt "<明文>"`。AES 金鑰：dev 取 repo 根的 `secret.decryption.key`（gitignored）、prod 取環境變數 `APP_SECRET_KEY`。
+> 若改用自己的金鑰，請重新以 `... -- encrypt "<新的 Jwt secret>"` 產生密文並貼回 `appsettings.Development.json`。
 
 ## 主要 API
 

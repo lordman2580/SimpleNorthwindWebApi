@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <UserSecretsId>f3f81635-f405-4eed-80f3-05a00b100c70</UserSecretsId>
+    <!-- 不使用 User Secrets：設定走 appsettings（敏感值以 AES enc: 加密）+ 環境變數 -->
     <!-- 產生 XML 文件供 Swagger 顯示 action summary；1591 = 缺 XML 註解的警告，未註解成員（DTO 等）不視為錯誤 -->
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1591</NoWarn>
