@@ -195,36 +195,36 @@ public sealed class OrderService(
 
     public async Task<Result<OrderDto>> GetAsync(int orderId, CancellationToken ct = default)
     {
-        var order = await orders.GetByIdAsync(orderId, ct).ConfigureAwait(false);
-        if (order is null)
+        var header = await orders.GetViewAsync(orderId, ct).ConfigureAwait(false);
+        if (header is null)
             return Error.NotFound("order.not_found", $"找不到訂單 {orderId}。");
 
-        var details = await orderDetails.ListByOrderAsync(orderId, ct).ConfigureAwait(false);
-        return MapOrder(order, details);
+        var detailRows = await orderDetails.ListRowsByOrdersAsync([orderId], ct).ConfigureAwait(false);
+        return MapOrder(header, detailRows);
     }
 
     public async Task<IReadOnlyList<OrderDto>> ListAsync(CancellationToken ct = default)
     {
-        var orderList = await orders.ListAsync(ct).ConfigureAwait(false);
-        if (orderList.Count == 0)
+        var headers = await orders.ListViewsAsync(ct).ConfigureAwait(false);
+        if (headers.Count == 0)
             return [];
 
         var detailLookup = (await orderDetails
-                .ListByOrdersAsync(orderList.Select(o => o.OrderId).ToList(), ct).ConfigureAwait(false))
+                .ListRowsByOrdersAsync(headers.Select(h => h.OrderId).ToList(), ct).ConfigureAwait(false))
             .GroupBy(d => d.OrderId)
-            .ToDictionary(g => g.Key, g => (IReadOnlyList<OrderDetail>)g.ToList());
+            .ToDictionary(g => g.Key, g => (IReadOnlyList<OrderDetailRow>)g.ToList());
 
-        return orderList
-            .Select(o => MapOrder(o, detailLookup.TryGetValue(o.OrderId, out var details) ? details : []))
+        return headers
+            .Select(h => MapOrder(h, detailLookup.TryGetValue(h.OrderId, out var details) ? details : []))
             .ToList();
     }
 
     private async Task<OrderDto> BuildDtoAsync(int orderId, CancellationToken ct)
     {
-        var order = await orders.GetByIdAsync(orderId, ct).ConfigureAwait(false)
+        var header = await orders.GetViewAsync(orderId, ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException($"訂單 {orderId} 建立後找不到。");
-        var details = await orderDetails.ListByOrderAsync(orderId, ct).ConfigureAwait(false);
-        return MapOrder(order, details);
+        var detailRows = await orderDetails.ListRowsByOrdersAsync([orderId], ct).ConfigureAwait(false);
+        return MapOrder(header, detailRows);
     }
 
     /// <summary>請求明細是否與現況完全一致（產品集合 + 數量 + 折扣，不含 version）。</summary>
@@ -245,8 +245,13 @@ public sealed class OrderService(
         return true;
     }
 
-    private static OrderDto MapOrder(Order order, IReadOnlyList<OrderDetail> details) =>
-        new(order.OrderId, order.CustomerId, order.EmployeeId, order.OrderDate,
-            order.ModifiedEmployeeId, order.ModifiedDate, order.IsCanceled, order.IsPaidoff,
-            details.Select(d => new OrderDetailDto(d.ProductId, d.OrderQuantities, d.Discount, d.Version)).ToList());
+    private static OrderDto MapOrder(OrderHeaderRow h, IReadOnlyList<OrderDetailRow> details) =>
+        new(h.OrderId, h.CustomerId, h.CustomerName, h.EmployeeId, h.EmployeeName, h.OrderDate,
+            h.ModifiedEmployeeId, h.ModifiedEmployeeName, h.ModifiedDate, h.IsCanceled, h.IsPaidoff,
+            StatusOf(h.IsCanceled, h.IsPaidoff),
+            details.Select(d => new OrderDetailDto(d.ProductId, d.ProductName, d.UnitPrice, d.OrderQuantities, d.Discount, d.Version)).ToList());
+
+    /// <summary>由 is_* 推導訂單狀態（UD9）：已取消 / 已付清 / 正常。</summary>
+    private static string StatusOf(bool isCanceled, bool isPaidoff) =>
+        isCanceled ? "已取消" : isPaidoff ? "已付清" : "正常";
 }
