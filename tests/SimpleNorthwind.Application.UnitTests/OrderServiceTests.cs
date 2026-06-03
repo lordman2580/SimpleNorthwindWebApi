@@ -213,50 +213,62 @@ public sealed class OrderServiceTests
     // ═════════════════════════════════════════════════════════════════════════
 
     [Fact]
-    public async Task UpdateAsync_VersionConflict_ReturnsConflict()
+    public async Task UpdateAsync_NoChanges_ReturnsValidationNotModifiedAndSkipsWrite()
     {
-        // Arrange
-        const int orderId   = 10;
-        const int productId  = 401;
-        const int currentQty = 5;
-        const int newQty     = 8;   // delta = +3 → TryDecreaseStock needed
-        const int version    = 1;
+        // Arrange：請求明細與現況完全相同（同產品、同數量、同折扣）
+        const int orderId  = 10;
+        const int productId = 401;
 
         _orders.GetByIdAsync(orderId, Arg.Any<CancellationToken>())
-               .Returns(MakeOrder(orderId, isPaidoff: false, isCanceled: false));
+               .Returns(MakeOrder(orderId));
 
-        // Existing detail for the same productId
-        IReadOnlyList<OrderDetail> existingDetails =
-        [
-            MakeDetail(orderId, productId, qty: currentQty, version: version)
-        ];
+        IReadOnlyList<OrderDetail> existing = [MakeDetail(orderId, productId, qty: 5)];
         _details.ListByOrderAsync(orderId, Arg.Any<CancellationToken>())
-                .Returns(existingDetails);
-
-        // Stock check passes (delta = +3)
-        _products.TryDecreaseStockAsync(productId, newQty - currentQty, Arg.Any<CancellationToken>())
-                 .Returns(true);
-
-        // Optimistic-concurrency update fails → version conflict
-        _details.UpdateWithVersionAsync(Arg.Any<OrderDetail>(), Arg.Any<CancellationToken>())
-                .Returns(false);
+                .Returns(existing);
 
         var request = new UpdateOrderRequest(
-            Details:
-            [
-                new UpdateOrderDetailRequest(productId, OrderQuantities: newQty, Discount: 0m, Version: version)
-            ]);
-
-        var sut = CreateSut();
+            Details: [new UpdateOrderDetailRequest(productId, OrderQuantities: 5, Discount: 0m)]);
 
         // Act
-        var result = await sut.UpdateAsync(orderId, request, actingEmployeeId: 1, default);
+        var result = await CreateSut().UpdateAsync(orderId, request, actingEmployeeId: 1, default);
+
+        // Assert：回 Validation（→ 400），且完全不碰 DB
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Type.ShouldBe(ErrorType.Validation);
+        result.Error.Code.ShouldBe("order.not_modified");
+
+        await _unitOfWork.DidNotReceive().BeginAsync(Arg.Any<CancellationToken>());
+        await _details.DidNotReceive().UpdateAsync(Arg.Any<OrderDetail>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ChangedQuantity_UpdatesDetailAndCommits()
+    {
+        // Arrange：數量 5 → 8（delta +3）
+        const int orderId  = 10;
+        const int productId = 401;
+
+        _orders.GetByIdAsync(orderId, Arg.Any<CancellationToken>())
+               .Returns(MakeOrder(orderId));
+        IReadOnlyList<OrderDetail> existing = [MakeDetail(orderId, productId, qty: 5)];
+        _details.ListByOrderAsync(orderId, Arg.Any<CancellationToken>())
+                .Returns(existing);
+        _products.TryDecreaseStockAsync(productId, 3, Arg.Any<CancellationToken>())
+                 .Returns(true);
+        _details.UpdateAsync(Arg.Any<OrderDetail>(), Arg.Any<CancellationToken>())
+                .Returns(true);
+
+        var request = new UpdateOrderRequest(
+            Details: [new UpdateOrderDetailRequest(productId, OrderQuantities: 8, Discount: 0m)]);
+
+        // Act
+        var result = await CreateSut().UpdateAsync(orderId, request, actingEmployeeId: 1, default);
 
         // Assert
-        result.IsFailure.ShouldBeTrue();
-        result.Error.Type.ShouldBe(ErrorType.Conflict);
-
-        await _unitOfWork.Received(1).RollbackAsync(Arg.Any<CancellationToken>());
+        result.IsSuccess.ShouldBeTrue();
+        await _products.Received(1).TryDecreaseStockAsync(productId, 3, Arg.Any<CancellationToken>());
+        await _details.Received(1).UpdateAsync(Arg.Any<OrderDetail>(), Arg.Any<CancellationToken>());
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -268,10 +280,7 @@ public sealed class OrderServiceTests
                .Returns((Order?)null);
 
         var request = new UpdateOrderRequest(
-            Details:
-            [
-                new UpdateOrderDetailRequest(ProductId: 501, OrderQuantities: 1, Discount: 0m, Version: 1)
-            ]);
+            Details: [new UpdateOrderDetailRequest(ProductId: 501, OrderQuantities: 1, Discount: 0m)]);
 
         var sut = CreateSut();
 

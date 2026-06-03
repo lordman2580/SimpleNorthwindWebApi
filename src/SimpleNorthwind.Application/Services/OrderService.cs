@@ -76,12 +76,17 @@ public sealed class OrderService(
         if (request.Details.Count == 0)
             return Error.Validation("order.empty", "訂單至少需一筆明細。");
 
+        var currentList = await orderDetails.ListByOrderAsync(orderId, ct).ConfigureAwait(false);
+
+        // 明細與現況完全相同（產品集合 + 數量 + 折扣）→ 不寫 DB，回 400（與庫存不足同款 ProblemDetails）。
+        if (IsUnchanged(request.Details, currentList))
+            return Error.Validation("order.not_modified", "未修改任何欄位，未更新。");
+
+        var current = currentList.ToDictionary(d => d.ProductId);
+
         await unitOfWork.BeginAsync(ct).ConfigureAwait(false);
         try
         {
-            var current = (await orderDetails.ListByOrderAsync(orderId, ct).ConfigureAwait(false))
-                .ToDictionary(d => d.ProductId);
-
             foreach (var requested in request.Details)
             {
                 if (current.TryGetValue(requested.ProductId, out var existing))
@@ -100,19 +105,15 @@ public sealed class OrderService(
                         await products.RestoreStockAsync(requested.ProductId, -delta, ct).ConfigureAwait(false);
                     }
 
-                    var updated = new OrderDetail
+                    // version 由 repository 端自增（不接受使用者帶入）。
+                    await orderDetails.UpdateAsync(new OrderDetail
                     {
                         OrderId = orderId,
                         ProductId = requested.ProductId,
                         OrderQuantities = requested.OrderQuantities,
                         Discount = requested.Discount,
-                        Version = requested.Version
-                    };
-                    if (!await orderDetails.UpdateWithVersionAsync(updated, ct).ConfigureAwait(false))
-                    {
-                        await unitOfWork.RollbackAsync(ct).ConfigureAwait(false);
-                        return Error.Conflict("order.version_conflict", $"產品 {requested.ProductId} 明細已被更新（版本衝突）。");
-                    }
+                        Version = existing.Version
+                    }, ct).ConfigureAwait(false);
                 }
                 else
                 {
@@ -213,6 +214,24 @@ public sealed class OrderService(
             ?? throw new InvalidOperationException($"訂單 {orderId} 建立後找不到。");
         var details = await orderDetails.ListByOrderAsync(orderId, ct).ConfigureAwait(false);
         return MapOrder(order, details);
+    }
+
+    /// <summary>請求明細是否與現況完全一致（產品集合 + 數量 + 折扣，不含 version）。</summary>
+    private static bool IsUnchanged(IReadOnlyList<UpdateOrderDetailRequest> requested, IReadOnlyList<OrderDetail> current)
+    {
+        if (requested.Count != current.Count)
+            return false;
+
+        var currentByProduct = current.ToDictionary(d => d.ProductId);
+        foreach (var r in requested)
+        {
+            if (!currentByProduct.TryGetValue(r.ProductId, out var c))
+                return false;
+            if (r.OrderQuantities != c.OrderQuantities || r.Discount != c.Discount)
+                return false;
+        }
+
+        return true;
     }
 
     private static OrderDto MapOrder(Order order, IReadOnlyList<OrderDetail> details) =>

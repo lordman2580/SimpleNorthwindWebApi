@@ -31,6 +31,16 @@ public sealed class CustomerService(ICustomerRepository customers) : ICustomerSe
         if (customer is null)
             return Error.NotFound("customer.not_found", $"找不到客戶 {customerId}。");
 
+        // 未修改任何欄位 → 不寫 DB，回 400（與庫存不足同款 ProblemDetails）。
+        if (request.CompanyName == customer.CompanyName &&
+            request.ContactNumber == customer.ContactNumber &&
+            request.ContactTitle == customer.ContactTitle &&
+            request.IsOutContacted == customer.IsOutContacted &&
+            request.OutContactedDate == customer.OutContactedDate)
+        {
+            return Error.Validation("customer.not_modified", "未修改任何欄位，未更新。");
+        }
+
         customer.CompanyName = request.CompanyName;
         customer.ContactNumber = request.ContactNumber;
         customer.ContactTitle = request.ContactTitle;

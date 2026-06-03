@@ -17,6 +17,7 @@ public sealed record CreateOrderDetailRequest(int ProductId, int OrderQuantities
 
 public sealed record CreateOrderRequest(int CustomerId, IReadOnlyList<CreateOrderDetailRequest> Details);
 
-public sealed record UpdateOrderDetailRequest(int ProductId, int OrderQuantities, decimal Discount, int Version);
+// version 由伺服器端管理、不接受使用者帶入（故更新請求不含 Version）。
+public sealed record UpdateOrderDetailRequest(int ProductId, int OrderQuantities, decimal Discount);
 
 public sealed record UpdateOrderRequest(IReadOnlyList<UpdateOrderDetailRequest> Details);

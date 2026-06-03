@@ -53,4 +53,27 @@ public sealed class CustomersEndpointTests(CustomWebApplicationFactory factory)
 
         response.StatusCode.ShouldBe(HttpStatusCode.NotFound);
     }
+
+    [Fact]
+    public async Task UpdateCustomer_NoChanges_Returns400()
+    {
+        var client = await factory.CreateAuthenticatedClientAsync();
+
+        var create = await client.PostAsJsonAsync("/api/customers",
+            new { companyName = "NoOp Co.", contactNumber = "02-3333-3333", contactTitle = "Owner" });
+        create.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var id = (await create.ReadJsonAsync()).GetProperty("customerId").GetInt32();
+
+        // 送出與現況完全相同的欄位 → 未修改 → 400
+        var update = await client.PutAsJsonAsync($"/api/customers/{id}", new
+        {
+            companyName = "NoOp Co.",
+            contactNumber = "02-3333-3333",
+            contactTitle = "Owner",
+            isOutContacted = false,
+            outContactedDate = (string?)null,
+        });
+
+        update.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+    }
 }

@@ -94,7 +94,7 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
         await conn.OpenAsync().ConfigureAwait(false);
         await using var cmd = conn.CreateCommand();
         cmd.CommandText = """
-            SELECT TOP (1) user_id, actions, action_detail, summary_date
+            SELECT TOP (1) user_id, actions, action_detail, response_status, response_result, summary_date
             FROM dbo.api_logs
             WHERE actions = @actions
             ORDER BY summary_date DESC;
@@ -108,12 +108,15 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
             reader.IsDBNull(0) ? null : reader.GetInt32(0),
             reader.GetString(1),
             reader.IsDBNull(2) ? null : reader.GetString(2),
-            reader.GetDateTime(3));
+            reader.IsDBNull(3) ? null : reader.GetInt32(3),
+            reader.IsDBNull(4) ? null : reader.GetString(4),
+            reader.GetDateTime(5));
     }
 }
 
 /// <summary>單列 api_logs 投影（測試用）。</summary>
-public sealed record ApiLogRow(int? UserId, string Actions, string? Detail, DateTime SummaryDate);
+public sealed record ApiLogRow(
+    int? UserId, string Actions, string? Detail, int? ResponseStatus, string? ResponseResult, DateTime SummaryDate);
 
 /// <summary>整個 E2E 測試集合共用同一個 factory + 同一個測試庫，並序列化執行避免互相污染。</summary>
 [CollectionDefinition(E2ECollection.Name)]

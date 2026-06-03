@@ -59,10 +59,10 @@ public sealed class OrdersEndpointTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task UpdateOrder_WithStaleVersion_Returns409()
+    public async Task UpdateOrder_NoChanges_Returns400AndStockUnchanged()
     {
         var client = await factory.CreateAuthenticatedClientAsync();
-        var customerId = await client.CreateCustomerAsync("Orders Co. Version");
+        var customerId = await client.CreateCustomerAsync("Orders Co. NoOp");
 
         const int productId = 70;
         var create = await client.PostAsJsonAsync("/api/orders", new
@@ -74,13 +74,39 @@ public sealed class OrdersEndpointTests(CustomWebApplicationFactory factory)
         var orderId = (await create.ReadJsonAsync()).GetProperty("orderId").GetInt32();
         var stockAfterCreate = await factory.GetProductStockAsync(productId);
 
-        // 以過時 version 更新 → 樂觀並行衝突
+        // 送出與現況完全相同的明細 → 未修改 → 400，且不寫 DB（庫存不變）
         var update = await client.PutAsJsonAsync($"/api/orders/{orderId}", new
         {
-            details = new[] { new { productId, orderQuantities = 5, discount = 0, version = 999 } },
+            details = new[] { new { productId, orderQuantities = 2, discount = 0 } },
         });
 
-        update.StatusCode.ShouldBe(HttpStatusCode.Conflict);
-        (await factory.GetProductStockAsync(productId)).ShouldBe(stockAfterCreate); // 衝突 rollback，庫存不變
+        update.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
+        (await factory.GetProductStockAsync(productId)).ShouldBe(stockAfterCreate);
+    }
+
+    [Fact]
+    public async Task UpdateOrder_ChangedQuantity_Returns200AndAdjustsStock()
+    {
+        var client = await factory.CreateAuthenticatedClientAsync();
+        var customerId = await client.CreateCustomerAsync("Orders Co. Update");
+
+        const int productId = 71;
+        var create = await client.PostAsJsonAsync("/api/orders", new
+        {
+            customerId,
+            details = new[] { new { productId, orderQuantities = 2, discount = 0 } },
+        });
+        create.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var orderId = (await create.ReadJsonAsync()).GetProperty("orderId").GetInt32();
+        var stockAfterCreate = await factory.GetProductStockAsync(productId);
+
+        // 數量 2 → 5（再扣 3）→ 200
+        var update = await client.PutAsJsonAsync($"/api/orders/{orderId}", new
+        {
+            details = new[] { new { productId, orderQuantities = 5, discount = 0 } },
+        });
+
+        update.StatusCode.ShouldBe(HttpStatusCode.OK);
+        (await factory.GetProductStockAsync(productId)).ShouldBe(stockAfterCreate - 3);
     }
 }

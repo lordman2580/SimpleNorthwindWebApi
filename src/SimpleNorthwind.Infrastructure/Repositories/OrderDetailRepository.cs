@@ -1,28 +1,55 @@
 using Dapper;
 using SimpleNorthwind.Application.Abstractions.Persistence;
 using SimpleNorthwind.Domain.Entities;
+using SimpleNorthwind.Infrastructure.Persistence;
+using static SimpleNorthwind.Infrastructure.Persistence.SqlNaming;
 
 namespace SimpleNorthwind.Infrastructure.Repositories;
 
 internal sealed class OrderDetailRepository(IUnitOfWork uow) : IOrderDetailRepository
 {
-    private const string Columns = "order_id, product_id, order_quantities, discount, version";
+    private static readonly string Columns = EntityColumns<OrderDetail>.All;
 
-    public async Task InsertAsync(OrderDetail detail, CancellationToken ct = default)
-    {
-        const string sql = """
-            INSERT INTO dbo.order_details (order_id, product_id, order_quantities, discount, version)
-            VALUES (@OrderId, @ProductId, @OrderQuantities, @Discount, @Version);
-            """;
+    private static readonly string[] InsertProps =
+    [
+        nameof(OrderDetail.OrderId), nameof(OrderDetail.ProductId), nameof(OrderDetail.OrderQuantities),
+        nameof(OrderDetail.Discount), nameof(OrderDetail.Version),
+    ];
+
+    private static readonly string InsertSql =
+        $"INSERT INTO dbo.order_details ({Cols(InsertProps)}) VALUES ({Params(InsertProps)});";
+
+    private static readonly string ListByOrderSql =
+        $"SELECT {Columns} FROM dbo.order_details WHERE {Col(nameof(OrderDetail.OrderId))} = @orderId " +
+        $"ORDER BY {Col(nameof(OrderDetail.ProductId))};";
+
+    private static readonly string ListByOrdersSql =
+        $"SELECT {Columns} FROM dbo.order_details WHERE {Col(nameof(OrderDetail.OrderId))} IN @orderIds " +
+        $"ORDER BY {Col(nameof(OrderDetail.OrderId))}, {Col(nameof(OrderDetail.ProductId))};";
+
+    // version 由伺服器端管理（每次實際更新自增）；不再以使用者帶入的 version 做樂觀並行比對。
+    private static readonly string UpdateSql =
+        $"""
+        UPDATE dbo.order_details
+        SET {Col(nameof(OrderDetail.OrderQuantities))} = @{nameof(OrderDetail.OrderQuantities)},
+            {Col(nameof(OrderDetail.Discount))} = @{nameof(OrderDetail.Discount)},
+            {Col(nameof(OrderDetail.Version))} = {Col(nameof(OrderDetail.Version))} + 1
+        WHERE {Col(nameof(OrderDetail.OrderId))} = @{nameof(OrderDetail.OrderId)}
+          AND {Col(nameof(OrderDetail.ProductId))} = @{nameof(OrderDetail.ProductId)};
+        """;
+
+    private static readonly string DeleteSql =
+        $"DELETE FROM dbo.order_details WHERE {Col(nameof(OrderDetail.OrderId))} = @orderId " +
+        $"AND {Col(nameof(OrderDetail.ProductId))} = @productId;";
+
+    public async Task InsertAsync(OrderDetail detail, CancellationToken ct = default) =>
         await uow.Connection.ExecuteAsync(
-            new CommandDefinition(sql, detail, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
-    }
+            new CommandDefinition(InsertSql, detail, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
 
     public async Task<IReadOnlyList<OrderDetail>> ListByOrderAsync(int orderId, CancellationToken ct = default)
     {
-        var sql = $"SELECT {Columns} FROM dbo.order_details WHERE order_id = @orderId ORDER BY product_id;";
         var rows = await uow.Connection.QueryAsync<OrderDetail>(
-            new CommandDefinition(sql, new { orderId }, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
+            new CommandDefinition(ListByOrderSql, new { orderId }, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
         return rows.ToList();
     }
 
@@ -31,28 +58,19 @@ internal sealed class OrderDetailRepository(IUnitOfWork uow) : IOrderDetailRepos
         if (orderIds.Count == 0)
             return [];
 
-        var sql = $"SELECT {Columns} FROM dbo.order_details WHERE order_id IN @orderIds ORDER BY order_id, product_id;";
         var rows = await uow.Connection.QueryAsync<OrderDetail>(
-            new CommandDefinition(sql, new { orderIds }, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
+            new CommandDefinition(ListByOrdersSql, new { orderIds }, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
         return rows.ToList();
     }
 
-    public async Task<bool> UpdateWithVersionAsync(OrderDetail detail, CancellationToken ct = default)
+    public async Task<bool> UpdateAsync(OrderDetail detail, CancellationToken ct = default)
     {
-        const string sql = """
-            UPDATE dbo.order_details
-            SET order_quantities = @OrderQuantities, discount = @Discount, version = version + 1
-            WHERE order_id = @OrderId AND product_id = @ProductId AND version = @Version;
-            """;
         var affected = await uow.Connection.ExecuteAsync(
-            new CommandDefinition(sql, detail, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
+            new CommandDefinition(UpdateSql, detail, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
         return affected == 1;
     }
 
-    public async Task DeleteAsync(int orderId, int productId, CancellationToken ct = default)
-    {
-        const string sql = "DELETE FROM dbo.order_details WHERE order_id = @orderId AND product_id = @productId;";
+    public async Task DeleteAsync(int orderId, int productId, CancellationToken ct = default) =>
         await uow.Connection.ExecuteAsync(
-            new CommandDefinition(sql, new { orderId, productId }, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
-    }
+            new CommandDefinition(DeleteSql, new { orderId, productId }, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
 }

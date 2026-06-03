@@ -1,58 +1,77 @@
 using Dapper;
 using SimpleNorthwind.Application.Abstractions.Persistence;
 using SimpleNorthwind.Domain.Entities;
+using SimpleNorthwind.Infrastructure.Persistence;
+using static SimpleNorthwind.Infrastructure.Persistence.SqlNaming;
 
 namespace SimpleNorthwind.Infrastructure.Repositories;
 
 internal sealed class CustomerRepository(IUnitOfWork uow) : ICustomerRepository
 {
-    private const string Columns =
-        "customer_id, company_name, contact_number, contact_title, create_date, create_user, is_out_contacted, out_contacted_date";
+    // 欄位名一律由實體屬性以 nameof / reflection 推導（point 5/6），不硬寫字串。
+    private static readonly string Columns = EntityColumns<Customer>.All;
 
-    public async Task<Customer?> GetByIdAsync(int customerId, CancellationToken ct = default)
-    {
-        var sql = $"SELECT {Columns} FROM dbo.customers WHERE customer_id = @customerId;";
-        return await uow.Connection.QuerySingleOrDefaultAsync<Customer>(
-            new CommandDefinition(sql, new { customerId }, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
-    }
+    // 寫入欄位（排除 IDENTITY 主鍵 CustomerId）。
+    private static readonly string[] InsertProps =
+    [
+        nameof(Customer.CompanyName), nameof(Customer.ContactNumber), nameof(Customer.ContactTitle),
+        nameof(Customer.CreateDate), nameof(Customer.CreateUser), nameof(Customer.IsOutContacted),
+        nameof(Customer.OutContactedDate),
+    ];
+
+    private static readonly string GetByIdSql =
+        $"SELECT {Columns} FROM dbo.customers WHERE {Col(nameof(Customer.CustomerId))} = @customerId;";
+
+    private static readonly string ListSql =
+        $"SELECT {Columns} FROM dbo.customers ORDER BY {Col(nameof(Customer.CustomerId))};";
+
+    private static readonly string InsertSql =
+        $"""
+        INSERT INTO dbo.customers ({Cols(InsertProps)})
+        OUTPUT INSERTED.{Col(nameof(Customer.CustomerId))}
+        VALUES ({Params(InsertProps)});
+        """;
+
+    private static readonly string UpdateSql =
+        $"""
+        UPDATE dbo.customers
+        SET {Col(nameof(Customer.CompanyName))} = @{nameof(Customer.CompanyName)},
+            {Col(nameof(Customer.ContactNumber))} = @{nameof(Customer.ContactNumber)},
+            {Col(nameof(Customer.ContactTitle))} = @{nameof(Customer.ContactTitle)},
+            {Col(nameof(Customer.IsOutContacted))} = @{nameof(Customer.IsOutContacted)},
+            {Col(nameof(Customer.OutContactedDate))} = @{nameof(Customer.OutContactedDate)}
+        WHERE {Col(nameof(Customer.CustomerId))} = @{nameof(Customer.CustomerId)};
+        """;
+
+    private static readonly string DeleteSql =
+        $"DELETE FROM dbo.customers WHERE {Col(nameof(Customer.CustomerId))} = @customerId;";
+
+    public async Task<Customer?> GetByIdAsync(int customerId, CancellationToken ct = default) =>
+        await uow.Connection.QuerySingleOrDefaultAsync<Customer>(
+            new CommandDefinition(GetByIdSql, new { customerId }, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
 
     public async Task<IReadOnlyList<Customer>> ListAsync(CancellationToken ct = default)
     {
-        var sql = $"SELECT {Columns} FROM dbo.customers ORDER BY customer_id;";
         var rows = await uow.Connection.QueryAsync<Customer>(
-            new CommandDefinition(sql, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
+            new CommandDefinition(ListSql, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
         return rows.ToList();
     }
 
-    public async Task<int> InsertAsync(Customer customer, CancellationToken ct = default)
-    {
-        const string sql = """
-            INSERT INTO dbo.customers (company_name, contact_number, contact_title, create_date, create_user, is_out_contacted, out_contacted_date)
-            OUTPUT INSERTED.customer_id
-            VALUES (@CompanyName, @ContactNumber, @ContactTitle, @CreateDate, @CreateUser, @IsOutContacted, @OutContactedDate);
-            """;
-        return await uow.Connection.ExecuteScalarAsync<int>(
-            new CommandDefinition(sql, customer, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
-    }
+    public async Task<int> InsertAsync(Customer customer, CancellationToken ct = default) =>
+        await uow.Connection.ExecuteScalarAsync<int>(
+            new CommandDefinition(InsertSql, customer, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
 
     public async Task<bool> UpdateAsync(Customer customer, CancellationToken ct = default)
     {
-        const string sql = """
-            UPDATE dbo.customers
-            SET company_name = @CompanyName, contact_number = @ContactNumber, contact_title = @ContactTitle,
-                is_out_contacted = @IsOutContacted, out_contacted_date = @OutContactedDate
-            WHERE customer_id = @CustomerId;
-            """;
         var affected = await uow.Connection.ExecuteAsync(
-            new CommandDefinition(sql, customer, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
+            new CommandDefinition(UpdateSql, customer, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
         return affected > 0;
     }
 
     public async Task<bool> DeleteAsync(int customerId, CancellationToken ct = default)
     {
-        const string sql = "DELETE FROM dbo.customers WHERE customer_id = @customerId;";
         var affected = await uow.Connection.ExecuteAsync(
-            new CommandDefinition(sql, new { customerId }, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
+            new CommandDefinition(DeleteSql, new { customerId }, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
         return affected > 0;
     }
 }

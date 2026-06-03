@@ -100,6 +100,26 @@ public sealed class CustomerServiceTests
     }
 
     [Fact]
+    public async Task UpdateAsync_NoChanges_ReturnsValidationNotModifiedAndSkipsWrite()
+    {
+        // Arrange：請求與現況完全相同
+        var customer = BuildCustomer(id: 7);
+        _repo.GetByIdAsync(7, Arg.Any<CancellationToken>()).Returns(customer);
+        var request = new UpdateCustomerRequest(
+            customer.CompanyName, customer.ContactNumber, customer.ContactTitle,
+            customer.IsOutContacted, customer.OutContactedDate);
+
+        // Act
+        var result = await _sut.UpdateAsync(7, request);
+
+        // Assert：回 Validation（→ 400），不寫 DB
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Type.ShouldBe(ErrorType.Validation);
+        result.Error.Code.ShouldBe("customer.not_modified");
+        await _repo.DidNotReceive().UpdateAsync(Arg.Any<Customer>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task UpdateAsync_NotFound_ReturnsNotFound()
     {
         // Arrange

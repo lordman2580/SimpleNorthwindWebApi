@@ -117,7 +117,7 @@ public sealed class UpdateOrderValidatorTests
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private static UpdateOrderDetailRequest ValidDetail(int productId = 1) =>
-        new(ProductId: productId, OrderQuantities: 2, Discount: 0m, Version: 1);
+        new(ProductId: productId, OrderQuantities: 2, Discount: 0m);
 
     // ── Details collection ───────────────────────────────────────────────────
 
@@ -130,17 +130,17 @@ public sealed class UpdateOrderValidatorTests
         result.ShouldHaveValidationErrorFor(x => x.Details);
     }
 
-    // ── Version ───────────────────────────────────────────────────────────────
+    // ── Per-detail rules ──────────────────────────────────────────────────────
 
     [Theory]
     [InlineData(0)]
-    [InlineData(-1)]
-    public void DetailVersionNotGreaterThanZero_ShouldFailValidation(int version)
+    [InlineData(-5)]
+    public void DetailOrderQuantitiesNotGreaterThanZero_ShouldFailValidation(int qty)
     {
         var request = new UpdateOrderRequest(
             Details: new List<UpdateOrderDetailRequest>
             {
-                new(ProductId: 1, OrderQuantities: 1, Discount: 0m, Version: version)
+                new(ProductId: 1, OrderQuantities: qty, Discount: 0m)
             });
 
         _validator.Validate(request).IsValid.ShouldBeFalse();
@@ -169,8 +169,8 @@ public sealed class UpdateOrderValidatorTests
         var request = new UpdateOrderRequest(
             Details: new List<UpdateOrderDetailRequest>
             {
-                new(ProductId: 1, OrderQuantities: 2, Discount: 0.05m, Version: 1),
-                new(ProductId: 2, OrderQuantities: 5, Discount: 0m,    Version: 2)
+                new(ProductId: 1, OrderQuantities: 2, Discount: 0.05m),
+                new(ProductId: 2, OrderQuantities: 5, Discount: 0m)
             });
 
         var result = _validator.TestValidate(request);
