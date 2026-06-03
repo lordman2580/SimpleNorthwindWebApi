@@ -275,7 +275,7 @@ public sealed class OrderServiceTests
     [Fact]
     public async Task UpdateAsync_ChangedDataWithStaleVersion_ReturnsConflict()
     {
-        // Arrange：資料有變（5→8）但 version 不符 → 樂觀並行衝突
+        // Arrange：資料有變（5→8）且 version 不符（DB=2, 帶=1）→ 409
         const int orderId  = 10;
         const int productId = 401;
 
@@ -284,13 +284,36 @@ public sealed class OrderServiceTests
         IReadOnlyList<OrderDetail> existing = [MakeDetail(orderId, productId, qty: 5, version: 2)];
         _details.ListByOrderAsync(orderId, Arg.Any<CancellationToken>())
                 .Returns(existing);
-        _products.TryDecreaseStockAsync(productId, 3, Arg.Any<CancellationToken>())
-                 .Returns(true);
-        _details.UpdateWithVersionAsync(Arg.Any<OrderDetail>(), Arg.Any<CancellationToken>())
-                .Returns(false); // 版本不符 → 0 列
 
         var request = new UpdateOrderRequest(
             Details: [new UpdateOrderDetailRequest(productId, OrderQuantities: 8, Discount: 0m, Version: 1)]);
+
+        // Act
+        var result = await CreateSut().UpdateAsync(orderId, request, actingEmployeeId: 1, default);
+
+        // Assert：version 優先 → 409，fail-fast 不開交易
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Type.ShouldBe(ErrorType.Conflict);
+        result.Error.Code.ShouldBe("order.version_conflict");
+        await _unitOfWork.DidNotReceive().BeginAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_StaleVersion_TakesPrecedenceOverNoOp_ReturnsConflict()
+    {
+        // Arrange：資料與現況「相同」(qty 5) 但 version 不符（DB=2, 帶=1）
+        // → version 比對優先於 no-op，應回 409（非 400 not_modified）
+        const int orderId  = 10;
+        const int productId = 401;
+
+        _orders.GetByIdAsync(orderId, Arg.Any<CancellationToken>())
+               .Returns(MakeOrder(orderId));
+        IReadOnlyList<OrderDetail> existing = [MakeDetail(orderId, productId, qty: 5, version: 2)];
+        _details.ListByOrderAsync(orderId, Arg.Any<CancellationToken>())
+                .Returns(existing);
+
+        var request = new UpdateOrderRequest(
+            Details: [new UpdateOrderDetailRequest(productId, OrderQuantities: 5, Discount: 0m, Version: 1)]);
 
         // Act
         var result = await CreateSut().UpdateAsync(orderId, request, actingEmployeeId: 1, default);
@@ -299,7 +322,7 @@ public sealed class OrderServiceTests
         result.IsFailure.ShouldBeTrue();
         result.Error.Type.ShouldBe(ErrorType.Conflict);
         result.Error.Code.ShouldBe("order.version_conflict");
-        await _unitOfWork.Received(1).RollbackAsync(Arg.Any<CancellationToken>());
+        await _unitOfWork.DidNotReceive().BeginAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]

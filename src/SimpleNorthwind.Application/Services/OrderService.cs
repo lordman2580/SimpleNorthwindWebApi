@@ -77,12 +77,18 @@ public sealed class OrderService(
             return Error.Validation("order.empty", "訂單至少需一筆明細。");
 
         var currentList = await orderDetails.ListByOrderAsync(orderId, ct).ConfigureAwait(false);
+        var current = currentList.ToDictionary(d => d.ProductId);
 
-        // 明細與現況完全相同（產品集合 + 數量 + 折扣）→ 不寫 DB，回 400（與庫存不足同款 ProblemDetails）。
+        // 樂觀並行「優先」：既有明細的 version 與 client 帶入不符 → 409（先於 no-op 判斷，fail-fast、不開交易）。
+        foreach (var requested in request.Details)
+        {
+            if (current.TryGetValue(requested.ProductId, out var existing) && requested.Version != existing.Version)
+                return Error.Conflict("order.version_conflict", $"產品 {requested.ProductId} 明細已被更新（版本衝突）。");
+        }
+
+        // 其次：明細資料（產品集合 + 數量 + 折扣，不含 version）與現況完全相同 → 不寫 DB，回 400。
         if (IsUnchanged(request.Details, currentList))
             return Error.Validation("order.not_modified", "未修改任何欄位，未更新。");
-
-        var current = currentList.ToDictionary(d => d.ProductId);
 
         await unitOfWork.BeginAsync(ct).ConfigureAwait(false);
         try

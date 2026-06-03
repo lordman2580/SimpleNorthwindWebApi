@@ -139,4 +139,28 @@ public sealed class OrdersEndpointTests(CustomWebApplicationFactory factory)
         update.StatusCode.ShouldBe(HttpStatusCode.Conflict);
         (await factory.GetProductStockAsync(productId)).ShouldBe(stockAfterCreate);
     }
+
+    [Fact]
+    public async Task UpdateOrder_StaleVersion_TakesPrecedenceOverNoChanges_Returns409()
+    {
+        var client = await factory.CreateAuthenticatedClientAsync();
+        var customerId = await client.CreateCustomerAsync("Orders Co. VerFirst");
+
+        const int productId = 73;
+        var create = await client.PostAsJsonAsync("/api/orders", new
+        {
+            customerId,
+            details = new[] { new { productId, orderQuantities = 2, discount = 0 } },
+        });
+        create.StatusCode.ShouldBe(HttpStatusCode.Created);
+        var orderId = (await create.ReadJsonAsync()).GetProperty("orderId").GetInt32();
+
+        // 資料「相同」(qty 2) 但帶過時 version → version 優先於 no-op → 409（非 400）
+        var update = await client.PutAsJsonAsync($"/api/orders/{orderId}", new
+        {
+            details = new[] { new { productId, orderQuantities = 2, discount = 0, version = 999 } },
+        });
+
+        update.StatusCode.ShouldBe(HttpStatusCode.Conflict);
+    }
 }
