@@ -27,15 +27,16 @@ internal sealed class OrderDetailRepository(IUnitOfWork uow) : IOrderDetailRepos
         $"SELECT {Columns} FROM dbo.order_details WHERE {Col(nameof(OrderDetail.OrderId))} IN @orderIds " +
         $"ORDER BY {Col(nameof(OrderDetail.OrderId))}, {Col(nameof(OrderDetail.ProductId))};";
 
-    // version 由伺服器端管理（每次實際更新自增）；不再以使用者帶入的 version 做樂觀並行比對。
-    private static readonly string UpdateSql =
+    // 樂觀並行：WHERE 比對 client 帶回的 version，符合才更新並自增；不符 → 0 列 → 版本衝突。
+    private static readonly string UpdateWithVersionSql =
         $"""
         UPDATE dbo.order_details
         SET {Col(nameof(OrderDetail.OrderQuantities))} = @{nameof(OrderDetail.OrderQuantities)},
             {Col(nameof(OrderDetail.Discount))} = @{nameof(OrderDetail.Discount)},
             {Col(nameof(OrderDetail.Version))} = {Col(nameof(OrderDetail.Version))} + 1
         WHERE {Col(nameof(OrderDetail.OrderId))} = @{nameof(OrderDetail.OrderId)}
-          AND {Col(nameof(OrderDetail.ProductId))} = @{nameof(OrderDetail.ProductId)};
+          AND {Col(nameof(OrderDetail.ProductId))} = @{nameof(OrderDetail.ProductId)}
+          AND {Col(nameof(OrderDetail.Version))} = @{nameof(OrderDetail.Version)};
         """;
 
     private static readonly string DeleteSql =
@@ -63,10 +64,10 @@ internal sealed class OrderDetailRepository(IUnitOfWork uow) : IOrderDetailRepos
         return rows.ToList();
     }
 
-    public async Task<bool> UpdateAsync(OrderDetail detail, CancellationToken ct = default)
+    public async Task<bool> UpdateWithVersionAsync(OrderDetail detail, CancellationToken ct = default)
     {
         var affected = await uow.Connection.ExecuteAsync(
-            new CommandDefinition(UpdateSql, detail, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
+            new CommandDefinition(UpdateWithVersionSql, detail, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
         return affected == 1;
     }
 

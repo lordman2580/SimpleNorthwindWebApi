@@ -27,3 +27,13 @@ secret.decryption.key
 ## OS noise
 Thumbs.db
 .DS_Store
+
+## AI 助理文件（不納入版控 — 本機 AI 協作用，非交付物）
+CLAUDE.md
+**/CLAUDE.md
+.claude/
+AGENTS.md
+GEMINI.md
+.cursor/
+.cursorrules
+.github/copilot-instructions.md

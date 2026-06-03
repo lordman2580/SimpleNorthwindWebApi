@@ -222,12 +222,13 @@ public sealed class OrderServiceTests
         _orders.GetByIdAsync(orderId, Arg.Any<CancellationToken>())
                .Returns(MakeOrder(orderId));
 
-        IReadOnlyList<OrderDetail> existing = [MakeDetail(orderId, productId, qty: 5)];
+        IReadOnlyList<OrderDetail> existing = [MakeDetail(orderId, productId, qty: 5, version: 1)];
         _details.ListByOrderAsync(orderId, Arg.Any<CancellationToken>())
                 .Returns(existing);
 
+        // 資料與現況相同（version 帶正確值，但 no-op 比較只看資料）
         var request = new UpdateOrderRequest(
-            Details: [new UpdateOrderDetailRequest(productId, OrderQuantities: 5, Discount: 0m)]);
+            Details: [new UpdateOrderDetailRequest(productId, OrderQuantities: 5, Discount: 0m, Version: 1)]);
 
         // Act
         var result = await CreateSut().UpdateAsync(orderId, request, actingEmployeeId: 1, default);
@@ -238,28 +239,28 @@ public sealed class OrderServiceTests
         result.Error.Code.ShouldBe("order.not_modified");
 
         await _unitOfWork.DidNotReceive().BeginAsync(Arg.Any<CancellationToken>());
-        await _details.DidNotReceive().UpdateAsync(Arg.Any<OrderDetail>(), Arg.Any<CancellationToken>());
+        await _details.DidNotReceive().UpdateWithVersionAsync(Arg.Any<OrderDetail>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
     public async Task UpdateAsync_ChangedQuantity_UpdatesDetailAndCommits()
     {
-        // Arrange：數量 5 → 8（delta +3）
+        // Arrange：數量 5 → 8（delta +3），version 1 相符
         const int orderId  = 10;
         const int productId = 401;
 
         _orders.GetByIdAsync(orderId, Arg.Any<CancellationToken>())
                .Returns(MakeOrder(orderId));
-        IReadOnlyList<OrderDetail> existing = [MakeDetail(orderId, productId, qty: 5)];
+        IReadOnlyList<OrderDetail> existing = [MakeDetail(orderId, productId, qty: 5, version: 1)];
         _details.ListByOrderAsync(orderId, Arg.Any<CancellationToken>())
                 .Returns(existing);
         _products.TryDecreaseStockAsync(productId, 3, Arg.Any<CancellationToken>())
                  .Returns(true);
-        _details.UpdateAsync(Arg.Any<OrderDetail>(), Arg.Any<CancellationToken>())
+        _details.UpdateWithVersionAsync(Arg.Any<OrderDetail>(), Arg.Any<CancellationToken>())
                 .Returns(true);
 
         var request = new UpdateOrderRequest(
-            Details: [new UpdateOrderDetailRequest(productId, OrderQuantities: 8, Discount: 0m)]);
+            Details: [new UpdateOrderDetailRequest(productId, OrderQuantities: 8, Discount: 0m, Version: 1)]);
 
         // Act
         var result = await CreateSut().UpdateAsync(orderId, request, actingEmployeeId: 1, default);
@@ -267,8 +268,38 @@ public sealed class OrderServiceTests
         // Assert
         result.IsSuccess.ShouldBeTrue();
         await _products.Received(1).TryDecreaseStockAsync(productId, 3, Arg.Any<CancellationToken>());
-        await _details.Received(1).UpdateAsync(Arg.Any<OrderDetail>(), Arg.Any<CancellationToken>());
+        await _details.Received(1).UpdateWithVersionAsync(Arg.Any<OrderDetail>(), Arg.Any<CancellationToken>());
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UpdateAsync_ChangedDataWithStaleVersion_ReturnsConflict()
+    {
+        // Arrange：資料有變（5→8）但 version 不符 → 樂觀並行衝突
+        const int orderId  = 10;
+        const int productId = 401;
+
+        _orders.GetByIdAsync(orderId, Arg.Any<CancellationToken>())
+               .Returns(MakeOrder(orderId));
+        IReadOnlyList<OrderDetail> existing = [MakeDetail(orderId, productId, qty: 5, version: 2)];
+        _details.ListByOrderAsync(orderId, Arg.Any<CancellationToken>())
+                .Returns(existing);
+        _products.TryDecreaseStockAsync(productId, 3, Arg.Any<CancellationToken>())
+                 .Returns(true);
+        _details.UpdateWithVersionAsync(Arg.Any<OrderDetail>(), Arg.Any<CancellationToken>())
+                .Returns(false); // 版本不符 → 0 列
+
+        var request = new UpdateOrderRequest(
+            Details: [new UpdateOrderDetailRequest(productId, OrderQuantities: 8, Discount: 0m, Version: 1)]);
+
+        // Act
+        var result = await CreateSut().UpdateAsync(orderId, request, actingEmployeeId: 1, default);
+
+        // Assert
+        result.IsFailure.ShouldBeTrue();
+        result.Error.Type.ShouldBe(ErrorType.Conflict);
+        result.Error.Code.ShouldBe("order.version_conflict");
+        await _unitOfWork.Received(1).RollbackAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -280,7 +311,7 @@ public sealed class OrderServiceTests
                .Returns((Order?)null);
 
         var request = new UpdateOrderRequest(
-            Details: [new UpdateOrderDetailRequest(ProductId: 501, OrderQuantities: 1, Discount: 0m)]);
+            Details: [new UpdateOrderDetailRequest(ProductId: 501, OrderQuantities: 1, Discount: 0m, Version: 1)]);
 
         var sut = CreateSut();
 

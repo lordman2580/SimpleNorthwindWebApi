@@ -105,15 +105,20 @@ public sealed class OrderService(
                         await products.RestoreStockAsync(requested.ProductId, -delta, ct).ConfigureAwait(false);
                     }
 
-                    // version 由 repository 端自增（不接受使用者帶入）。
-                    await orderDetails.UpdateAsync(new OrderDetail
+                    // 樂觀並行：帶 client 讀到的 version 比對，不符 → 409（並 rollback）。
+                    var updated = new OrderDetail
                     {
                         OrderId = orderId,
                         ProductId = requested.ProductId,
                         OrderQuantities = requested.OrderQuantities,
                         Discount = requested.Discount,
-                        Version = existing.Version
-                    }, ct).ConfigureAwait(false);
+                        Version = requested.Version
+                    };
+                    if (!await orderDetails.UpdateWithVersionAsync(updated, ct).ConfigureAwait(false))
+                    {
+                        await unitOfWork.RollbackAsync(ct).ConfigureAwait(false);
+                        return Error.Conflict("order.version_conflict", $"產品 {requested.ProductId} 明細已被更新（版本衝突）。");
+                    }
                 }
                 else
                 {
