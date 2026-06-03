@@ -4,8 +4,10 @@ public sealed class Customer
 {
     public int CustomerId { get; set; }
     public string CompanyName { get; set; } = string.Empty;
+    public string? ContactName { get; set; }
     public string? ContactNumber { get; set; }
     public string? ContactTitle { get; set; }
+    public string? Email { get; set; }
     public DateTime CreateDate { get; set; }
     public string CreateUser { get; set; } = string.Empty;
     public bool IsOutContacted { get; set; }

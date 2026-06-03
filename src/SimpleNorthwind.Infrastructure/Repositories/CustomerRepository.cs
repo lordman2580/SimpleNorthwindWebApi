@@ -14,8 +14,8 @@ internal sealed class CustomerRepository(IUnitOfWork uow) : ICustomerRepository
     // 寫入欄位（排除 IDENTITY 主鍵 CustomerId）。
     private static readonly string[] InsertProps =
     [
-        nameof(Customer.CompanyName), nameof(Customer.ContactNumber), nameof(Customer.ContactTitle),
-        nameof(Customer.CreateDate), nameof(Customer.CreateUser), nameof(Customer.IsOutContacted),
+        nameof(Customer.CompanyName), nameof(Customer.ContactName), nameof(Customer.ContactNumber), nameof(Customer.ContactTitle),
+        nameof(Customer.Email), nameof(Customer.CreateDate), nameof(Customer.CreateUser), nameof(Customer.IsOutContacted),
         nameof(Customer.OutContactedDate),
     ];
 
@@ -36,8 +36,10 @@ internal sealed class CustomerRepository(IUnitOfWork uow) : ICustomerRepository
         $"""
         UPDATE dbo.customers
         SET {Col(nameof(Customer.CompanyName))} = @{nameof(Customer.CompanyName)},
+            {Col(nameof(Customer.ContactName))} = @{nameof(Customer.ContactName)},
             {Col(nameof(Customer.ContactNumber))} = @{nameof(Customer.ContactNumber)},
             {Col(nameof(Customer.ContactTitle))} = @{nameof(Customer.ContactTitle)},
+            {Col(nameof(Customer.Email))} = @{nameof(Customer.Email)},
             {Col(nameof(Customer.IsOutContacted))} = @{nameof(Customer.IsOutContacted)},
             {Col(nameof(Customer.OutContactedDate))} = @{nameof(Customer.OutContactedDate)}
         WHERE {Col(nameof(Customer.CustomerId))} = @{nameof(Customer.CustomerId)};
