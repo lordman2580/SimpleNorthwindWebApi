@@ -1,7 +1,7 @@
 ---
 作者: Yell Huang
-日期: 2026/06/03 11:30:00
-版本: 1.10
+日期: 2026/06/03 11:23:04
+版本: 1.20
 ---
 
 # Simple Northwind WebApi
@@ -119,17 +119,37 @@ dotnet run --project src/SimpleNorthwind.Migrator
 
 ### 本機第一次設定（clone 後必做）
 
-連線字串已隨 `appsettings.Development.json` 入版控（LocalDB 明文），**DB 開箱即用**。唯一需準備的是解密 `Jwt:Secret` 的 **AES 金鑰**：
+連線字串已隨 `appsettings.Development.json` 入版控（LocalDB 明文），**DB 開箱即用**。唯一需準備的是解密 `Jwt:Secret` 的 **AES-256 金鑰**——格式為 **32 bytes 的 base64 字串**（解碼後須剛好 32 bytes）。
+
+**1) 產生金鑰**（擇一）：
 
 ```powershell
-# 二擇一：放金鑰檔到 repo 根，或設環境變數
-# (A) 金鑰檔（與既有 enc: 密文搭配；金鑰內容需與當初加密時一致）
-Set-Content -Path secret.decryption.key -Value "<AES 金鑰>" -NoNewline
-# (B) 環境變數
-$env:APP_SECRET_KEY = "<AES 金鑰>"
+# PowerShell（.NET，密碼學亂數）
+[Convert]::ToBase64String([System.Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
 ```
 
-> 若改用自己的金鑰，請重新以 `... -- encrypt "<新的 Jwt secret>"` 產生密文並貼回 `appsettings.Development.json`。
+```bash
+# 或 openssl
+openssl rand -base64 32
+```
+
+**2) 放置金鑰**（擇一）：
+
+```powershell
+# (A) 金鑰檔放 repo 根（gitignored，不入版控）
+Set-Content -Path secret.decryption.key -Value "<上一步產生的 base64 金鑰>" -NoNewline
+
+# (B) 環境變數（prod 建議）
+$env:APP_SECRET_KEY = "<上一步產生的 base64 金鑰>"
+```
+
+> ⚠️ committed 的 `enc:` 值（dev `Jwt:Secret`、prod 連線字串 / secret）是用**特定金鑰**加密的：
+> - **有專案既有金鑰**（安全管道取得）→ 直接放上即可，現有 `enc:` 解得開。
+> - **自行產生新金鑰** → 現有 `enc:` 將**解不開**，須用新金鑰重新加密並貼回設定檔：
+>   ```powershell
+>   dotnet run --project src/SimpleNorthwind.WebApi -- encrypt "<新的 Jwt secret>"
+>   # 取輸出的 enc:... 換掉 appsettings.Development.json 的 Jwt:Secret
+>   ```
 
 ## 主要 API
 
