@@ -1,7 +1,7 @@
 ---
 作者: Yell Huang
-日期: 2026/06/03 11:25:01
-版本: 1.21
+日期: 2026/06/03 11:29:45
+版本: 1.31
 ---
 
 # Simple Northwind WebApi
@@ -61,6 +61,16 @@ flowchart TB
 ```
 
 > 更新訂單（`PUT /api/orders/{id}`）採**樂觀並行 + no-op 偵測**：先比對 client 帶回的 `version`（不符 → 409），相符再判明細是否與現況相同（相同 → 400 未修改），否則更新（200）。
+
+## 前置需求 (Prerequisites)
+
+| 需求 | 說明 |
+|---|---|
+| **.NET 8 SDK** | `global.json` 釘 `net8.0`；`dotnet --version` 應為 8.x |
+| **SQL Server LocalDB** | 提供 `(localdb)\MSSQLLocalDB`（dev DB 唯一選項）。**裝 Visual Studio 通常即內含**；否則單獨安裝「SQL Server Express LocalDB」。檢查：`sqllocaldb info` |
+| **AES 金鑰** | 解密 `appsettings` 內 `Jwt:Secret` 的 `enc:`；放 repo 根 `secret.decryption.key` 或 env `APP_SECRET_KEY`（見「設定與連線字串」） |
+
+> clone 後**不需改任何設定值**：備妥上述三項 + 跑一次 Migrator 建庫即可（見「快速開始」）。`SimpleNorthwind` 資料庫不在 repo 內，新機器必須先跑 Migrator 才有資料（WebApi 啟動不檢查 DB，但登入會用到）。
 
 ## 快速開始
 
