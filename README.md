@@ -1,7 +1,7 @@
 ---
 作者: Yell Huang
-日期: 2026/06/03 11:23:04
-版本: 1.20
+日期: 2026/06/03 11:25:01
+版本: 1.21
 ---
 
 # Simple Northwind WebApi
@@ -19,7 +19,7 @@
 | 資料庫 | SQL Server / 本機 LocalDB |
 | 驗證 | JWT Bearer（PBKDF2 密碼雜湊） |
 | 驗證規則 | FluentValidation |
-| 機密 | AES-256-GCM（可逆機密）+ User Secrets（dev） |
+| 機密 | AES-256-GCM `enc:` 可逆機密（放 appsettings / 環境變數，**不用 User Secrets**） |
 | 日誌 | Serilog |
 | API 文件 | Swashbuckle（Swagger，含 XML doc summary） |
 | 測試 | xUnit + NSubstitute + Shouldly + WebApplicationFactory |
