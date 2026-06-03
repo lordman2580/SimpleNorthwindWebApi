@@ -70,6 +70,11 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
     options.SwaggerDoc("v1", new OpenApiInfo { Title = "Simple Northwind WebApi", Version = "v1" });
+
+    // 納入 XML doc comments（controller / action 的 summary、remarks、param、response）
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, $"{typeof(Program).Assembly.GetName().Name}.xml");
+    options.IncludeXmlComments(xmlPath, includeControllerXmlComments: true);
+
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
