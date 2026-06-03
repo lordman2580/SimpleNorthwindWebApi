@@ -14,6 +14,7 @@ public static class DependencyInjection
         services.AddScoped<ICustomerService, CustomerService>();
         services.AddScoped<IProductService, ProductService>();
         services.AddScoped<IEmployeeService, EmployeeService>();
+        services.AddScoped<IApiLogQueryService, ApiLogQueryService>();
 
         services.AddValidatorsFromAssemblyContaining<AddApplicationMarker>();
 

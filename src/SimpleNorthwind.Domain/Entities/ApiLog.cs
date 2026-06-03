@@ -8,5 +8,7 @@ public sealed class ApiLog
     public string? ActionDetail { get; set; }
     public int? ResponseStatus { get; set; }
     public string? ResponseResult { get; set; }
+    public string? ClientIp { get; set; }
+    public int? DurationMs { get; set; }
     public DateTime SummaryDate { get; set; }
 }

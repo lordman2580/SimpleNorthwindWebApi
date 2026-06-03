@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -21,19 +22,30 @@ public sealed class ApiLogActionFilter(IApiLogRepository apiLogs, ILogger<ApiLog
 
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
+        // [SkipApiLog] 端點（如讀稽核 GET /api/apilogs）不稽核、連帶不觸發推播（UD8）。
+        if (context.ActionDescriptor.EndpointMetadata.OfType<SkipApiLogAttribute>().Any())
+        {
+            await next().ConfigureAwait(false);
+            return;
+        }
+
         // 先記下參數（行為發生於 action 執行前後皆可，這裡在執行後寫入以涵蓋驗證失敗的呼叫）
         var detail = BuildDetail(context);
         var actions = BuildActionName(context);
         var userId = ResolveUserId(context);
+        var clientIp = context.HttpContext.Connection.RemoteIpAddress?.ToString();
 
+        var stopwatch = Stopwatch.StartNew();
         var executed = await next().ConfigureAwait(false);
+        stopwatch.Stop();
 
         var (status, resultBody) = ExtractResponse(executed);
 
         try
         {
             await apiLogs.WriteAsync(Guid.NewGuid(), userId, actions, detail, status, resultBody,
-                DateTime.UtcNow, context.HttpContext.RequestAborted).ConfigureAwait(false);
+                clientIp, (int)stopwatch.ElapsedMilliseconds, DateTime.UtcNow,
+                context.HttpContext.RequestAborted).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
