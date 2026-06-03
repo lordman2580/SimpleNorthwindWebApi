@@ -14,7 +14,7 @@ public sealed class CreateOrderRequestValidator : AbstractValidator<CreateOrderR
         {
             detail.RuleFor(d => d.ProductId).GreaterThan(0);
             detail.RuleFor(d => d.OrderQuantities).GreaterThan(0);
-            detail.RuleFor(d => d.Discount).InclusiveBetween(0m, 1m);
+            detail.RuleFor(d => d.Discount).InclusiveBetween(0m, 100m);   // 折扣為百分比 0~100（15=15%）
         });
 
         RuleFor(x => x.Details)

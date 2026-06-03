@@ -58,7 +58,7 @@ public sealed class OrderServiceTests
             Details:
             [
                 new CreateOrderDetailRequest(productId1, OrderQuantities: 3, Discount: 0m),
-                new CreateOrderDetailRequest(productId2, OrderQuantities: 2, Discount: 0.1m)
+                new CreateOrderDetailRequest(productId2, OrderQuantities: 2, Discount: 10m)
             ]);
 
         // Stock checks pass
