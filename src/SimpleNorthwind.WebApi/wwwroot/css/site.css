@@ -1,0 +1,121 @@
+:root {
+    --sn-teal: #0d9488;
+    --sn-teal-dark: #0f766e;
+    --sn-teal-light: #ccfbf1;
+    --sn-bg: #f1f5f9;
+    --sn-sidebar-w: 240px;
+}
+
+body {
+    background: var(--sn-bg);
+    font-family: "Noto Sans TC", "Segoe UI", system-ui, sans-serif;
+}
+
+/* ---- Sidebar ---- */
+.sn-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: var(--sn-sidebar-w);
+    background: var(--sn-teal-dark);
+    color: #e2e8f0;
+    padding: 1rem 0;
+    overflow-y: auto;
+    z-index: 1040;
+}
+
+.sn-sidebar .sn-brand {
+    color: #fff;
+    font-weight: 700;
+    font-size: 1.15rem;
+    padding: .5rem 1.25rem 1.25rem;
+    display: block;
+    text-decoration: none;
+}
+
+.sn-sidebar .nav-link {
+    color: #cbd5e1;
+    padding: .65rem 1.25rem;
+    display: flex;
+    gap: .6rem;
+    align-items: center;
+}
+
+.sn-sidebar .nav-link:hover {
+    background: rgba(255, 255, 255, .08);
+    color: #fff;
+}
+
+.sn-sidebar .nav-link.active {
+    background: var(--sn-teal);
+    color: #fff;
+    font-weight: 600;
+}
+
+/* ---- Content ---- */
+.sn-main {
+    margin-left: var(--sn-sidebar-w);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.sn-topbar {
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+    padding: .75rem 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.sn-content {
+    padding: 1.5rem;
+    flex: 1;
+}
+
+/* ---- Components ---- */
+.card {
+    border: none;
+    border-radius: .9rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .06);
+}
+
+.btn-teal {
+    background: var(--sn-teal);
+    border-color: var(--sn-teal);
+    color: #fff;
+}
+
+.btn-teal:hover {
+    background: var(--sn-teal-dark);
+    border-color: var(--sn-teal-dark);
+    color: #fff;
+}
+
+.text-teal { color: var(--sn-teal) !important; }
+
+.kpi-card .kpi-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--sn-teal-dark);
+}
+
+.kpi-card .kpi-label { color: #64748b; font-size: .85rem; }
+
+.status-badge { font-size: .78rem; font-weight: 600; }
+
+/* ---- Responsive ---- */
+@media (max-width: 768px) {
+    .sn-sidebar {
+        transform: translateX(-100%);
+        transition: transform .2s ease;
+        z-index: 1050;
+    }
+    .sn-sidebar.show { transform: translateX(0); }
+    .sn-main { margin-left: 0; }
+}

@@ -1,0 +1,135 @@
+@model ProductIndexViewModel
+@{
+    ViewData["Title"] = "產品";
+    var paged = Model.Page;
+
+    // 產生連結用的共用 query 值。
+    string? category = Model.Category;
+    var sortBy = Model.SortBy;
+    var desc = Model.Desc;
+
+    // 排序欄位連結：點同欄切換 desc，點不同欄則回到升冪；保留目前分類。
+    Func<string, string> sortHref = field =>
+    {
+        var nextDesc = (sortBy == field) ? (!desc) : false;
+        var qs = $"?sortBy={field}&desc={nextDesc.ToString().ToLowerInvariant()}";
+        if (!string.IsNullOrWhiteSpace(category)) qs += $"&category={Uri.EscapeDataString(category!)}";
+        return qs;
+    };
+
+    // 目前欄位的排序箭頭。
+    Func<string, string> sortArrow = field => (sortBy == field) ? (desc ? " ▼" : " ▲") : string.Empty;
+
+    // 分頁 / 每頁筆數連結：保留分類 + 排序。
+    Func<int, int, string> pageHref = (p, ps) =>
+    {
+        var qs = $"?page={p}&pageSize={ps}&sortBy={sortBy}&desc={desc.ToString().ToLowerInvariant()}";
+        if (!string.IsNullOrWhiteSpace(category)) qs += $"&category={Uri.EscapeDataString(category!)}";
+        return qs;
+    };
+}
+
+@if (TempData["Error"] is string err)
+{
+    <div class="alert alert-danger">@err</div>
+}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+    <h1 class="h3 fw-bold mb-0" style="color:#0f766e;">產品</h1>
+    <span class="text-muted small">共 @paged.TotalCount 筆</span>
+</div>
+
+@* 分類 chip 列：全部 + 各分類；目前選取的高亮。*@
+<div class="mb-3 d-flex flex-wrap gap-2">
+    <a href="?sortBy=@sortBy&desc=@desc.ToString().ToLowerInvariant()"
+       class="btn btn-sm @(string.IsNullOrWhiteSpace(category) ? "btn-teal" : "btn-outline-secondary")">
+        全部
+    </a>
+    @foreach (var cat in Model.Categories)
+    {
+        var catQs = $"?category={Uri.EscapeDataString(cat)}&sortBy={sortBy}&desc={desc.ToString().ToLowerInvariant()}";
+        var isActive = string.Equals(category, cat, StringComparison.Ordinal);
+        <a href="@catQs" class="btn btn-sm @(isActive ? "btn-teal" : "btn-outline-secondary")">@cat</a>
+    }
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th><a href="@sortHref("name")" class="text-decoration-none text-dark">產品名稱@sortArrow("name")</a></th>
+                    <th><a href="@sortHref("category")" class="text-decoration-none text-dark">分類@sortArrow("category")</a></th>
+                    <th class="text-end"><a href="@sortHref("price")" class="text-decoration-none text-dark">單價@sortArrow("price")</a></th>
+                    <th class="text-end"><a href="@sortHref("stock")" class="text-decoration-none text-dark">庫存@sortArrow("stock")</a></th>
+                    <th>狀態</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (paged.Items.Count == 0)
+                {
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">查無產品資料。</td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var p in paged.Items)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@p.ProductName</td>
+                            <td>@p.CategoryName</td>
+                            <td class="text-end">@p.UnitPrice.ToString("N2")</td>
+                            <td class="text-end">@p.Quantities</td>
+                            <td>
+                                @if (p.StockStatus == "缺貨")
+                                {
+                                    <span class="status-badge badge bg-danger">缺貨</span>
+                                }
+                                else
+                                {
+                                    <span class="status-badge badge bg-success">正常</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@* 每頁筆數 + 分頁列。*@
+<div class="d-flex flex-wrap align-items-center justify-content-between mt-3 gap-2">
+    <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small">每頁</span>
+        <div class="btn-group btn-group-sm" role="group" aria-label="每頁筆數">
+            @foreach (var size in PagedViewModel<ProductViewModel>.PageSizeOptions)
+            {
+                <a href="@pageHref(1, size)"
+                   class="btn @(paged.PageSize == size ? "btn-teal" : "btn-outline-secondary")">@size</a>
+            }
+        </div>
+        @if (paged.TotalCount > 0)
+        {
+            <span class="text-muted small ms-2">顯示第 @paged.FirstItemIndex–@paged.LastItemIndex 筆，共 @paged.TotalCount 筆</span>
+        }
+    </div>
+
+    @if (paged.TotalPages > 1)
+    {
+        <nav aria-label="分頁">
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(paged.HasPrevious ? "" : "disabled")">
+                    <a class="page-link" href="@pageHref(paged.Page - 1, paged.PageSize)">上一頁</a>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link">第 @paged.Page / @paged.TotalPages 頁</span>
+                </li>
+                <li class="page-item @(paged.HasNext ? "" : "disabled")">
+                    <a class="page-link" href="@pageHref(paged.Page + 1, paged.PageSize)">下一頁</a>
+                </li>
+            </ul>
+        </nav>
+    }
+</div>

@@ -1,14 +1,77 @@
 using Microsoft.AspNetCore.Mvc;
+using SimpleNorthwind.Application.Dashboard;
+using SimpleNorthwind.WebApi.Web.Http;
+using SimpleNorthwind.WebApi.Web.Models;
 
 namespace SimpleNorthwind.WebApi.Web.Controllers;
 
 /// <summary>
-/// 首頁 / 導覽（UI，Cookie scheme 由 <see cref="UiControllerBase"/> 提供）。
+/// 首頁 / 總覽（Dashboard，UI，Cookie scheme 由 <see cref="UiControllerBase"/> 提供）。
 /// 未登入存取 → Cookie handler 導向 /account/login。
-/// F1：靜態歡迎頁；Dashboard 彙總資料於 F2 (S2) 經 loopback 接上。
+/// 經 loopback 呼叫 <c>/api/dashboard/summary</c> 取得彙總資料並映射為 <see cref="DashboardViewModel"/>。
 /// </summary>
-public sealed class HomeUiController : UiControllerBase
+public sealed class HomeUiController(NorthwindApiClient apiClient) : UiControllerBase
 {
+    /// <summary>
+    /// 總覽頁。維持 <c>[HttpGet("/")]</c> 使根路徑映射至此動作。
+    /// </summary>
     [HttpGet("/")]
-    public IActionResult Index() => View("~/Web/Views/Home/Index.cshtml");
+    public async Task<IActionResult> Index(CancellationToken ct)
+    {
+        var result = await apiClient.GetDashboardSummaryAsync(ct);
+        if (await RedirectToLoginIfUnauthorizedAsync(result.StatusCode) is { } redirect)
+            return redirect;
+
+        if (!result.IsSuccess || result.Value is null)
+        {
+            TempData["Error"] = result.Detail ?? "總覽資料載入失敗。";
+            return View("~/Web/Views/Home/Index.cshtml", new DashboardViewModel { LoadFailed = true });
+        }
+
+        var vm = MapToViewModel(result.Value);
+        return View("~/Web/Views/Home/Index.cshtml", vm);
+    }
+
+    /// <summary>
+    /// 將後端彙總 DTO 映射為 View 檢視模型。
+    /// 最新訂單金額 = Σ(單價 × 數量 × (1 − 折扣百分比 / 100))；折扣以百分比表示。
+    /// 庫存狀態：數量為 0 → 缺貨，否則 → 低庫存。
+    /// </summary>
+    private static DashboardViewModel MapToViewModel(DashboardSummaryDto summary)
+    {
+        var recentOrders = summary.RecentOrders
+            .Select(o => new DashboardOrderRow
+            {
+                OrderId = o.OrderId,
+                CustomerName = o.CustomerName,
+                EmployeeName = o.EmployeeName,
+                OrderDate = o.OrderDate,
+                Status = o.Status,
+                Total = o.Details.Sum(d => d.UnitPrice * d.OrderQuantities * (1 - d.Discount / 100m)),
+            })
+            .ToList();
+
+        var lowStock = summary.LowStock
+            .Select(p => new DashboardStockRow
+            {
+                ProductName = p.ProductName,
+                CategoryName = p.CategoryName,
+                Quantities = p.Quantities,
+                StockStatus = p.Quantities == 0 ? "缺貨" : "低庫存",
+            })
+            .ToList();
+
+        return new DashboardViewModel
+        {
+            OrderCount = summary.OrderCount,
+            CustomerCount = summary.CustomerCount,
+            OpenOrderCount = summary.OpenOrderCount,
+            Revenue = summary.Revenue,
+            RecentOrders = recentOrders,
+            LowStock = lowStock,
+            AuditTotalToday = summary.AuditTotalToday,
+            AuditErrorToday = summary.AuditErrorToday,
+            LoadFailed = false,
+        };
+    }
 }

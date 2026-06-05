@@ -1,0 +1,107 @@
+@model CustomerIndexViewModel
+@{
+    ViewData["Title"] = "客戶";
+    var paged = Model.Page;
+
+    // 排序連結 helper：點同欄反向，點他欄預設遞增。
+    Func<string, bool> isCurrent = col => Model.SortBy == col;
+    Func<string, string> sortHref = col =>
+    {
+        var desc = isCurrent(col) ? !Model.Desc : false;
+        return $"/customers?sortBy={col}&desc={desc.ToString().ToLowerInvariant()}&page=1&pageSize={paged.PageSize}";
+    };
+    Func<string, string> sortArrow = col => isCurrent(col) ? (Model.Desc ? " ▾" : " ▴") : string.Empty;
+}
+
+@if (TempData["Error"] is string err)
+{
+    <div class="alert alert-danger">@err</div>
+}
+@if (TempData["Success"] is string ok)
+{
+    <div class="alert alert-success">@ok</div>
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">客戶</h1>
+    <a href="/customers/create" class="btn btn-teal">新增客戶</a>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th><a href="@sortHref("company")" class="text-decoration-none text-dark">客戶@(sortArrow("company"))</a></th>
+                    <th>客戶代碼</th>
+                    <th><a href="@sortHref("contact")" class="text-decoration-none text-dark">聯絡人@(sortArrow("contact"))</a></th>
+                    <th>電話</th>
+                    <th class="text-end"><a href="@sortHref("orders")" class="text-decoration-none text-dark">訂單數@(sortArrow("orders"))</a></th>
+                    <th class="text-end">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (paged.Items.Count == 0)
+                {
+                    <tr><td colspan="6" class="text-center text-muted py-4">尚無客戶資料。</td></tr>
+                }
+                else
+                {
+                    @foreach (var c in paged.Items)
+                    {
+                        <tr>
+                            <td>
+                                <a href="/customers/@c.CustomerId" class="text-teal fw-semibold text-decoration-none">@c.CompanyName</a>
+                            </td>
+                            <td class="text-muted">@c.CustomerId</td>
+                            <td>
+                                @if (!string.IsNullOrWhiteSpace(c.ContactName))
+                                {
+                                    <div>@c.ContactName</div>
+                                    @if (!string.IsNullOrWhiteSpace(c.ContactTitle))
+                                    {
+                                        <small class="text-muted">@c.ContactTitle</small>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td>@(string.IsNullOrWhiteSpace(c.ContactNumber) ? "—" : c.ContactNumber)</td>
+                            <td class="text-end">@c.OrderCount</td>
+                            <td class="text-end">
+                                <a href="/customers/@c.CustomerId" class="btn btn-sm btn-outline-secondary">檢視</a>
+                                <a href="/customers/@c.CustomerId/edit" class="btn btn-sm btn-outline-secondary">編輯</a>
+                                <a href="/customers/@c.CustomerId/delete" class="btn btn-sm btn-outline-danger">刪除</a>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@if (paged.TotalCount > 0)
+{
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <small class="text-muted">顯示 @paged.FirstItemIndex–@paged.LastItemIndex，共 @paged.TotalCount 筆</small>
+        <nav>
+            <ul class="pagination pagination-sm mb-0">
+                <li class="page-item @(paged.HasPrevious ? "" : "disabled")">
+                    <a class="page-link" href="/customers?sortBy=@Model.SortBy&desc=@Model.Desc.ToString().ToLowerInvariant()&page=@(paged.Page - 1)&pageSize=@paged.PageSize">上一頁</a>
+                </li>
+                @for (var p = 1; p <= paged.TotalPages; p++)
+                {
+                    <li class="page-item @(p == paged.Page ? "active" : "")">
+                        <a class="page-link" href="/customers?sortBy=@Model.SortBy&desc=@Model.Desc.ToString().ToLowerInvariant()&page=@p&pageSize=@paged.PageSize">@p</a>
+                    </li>
+                }
+                <li class="page-item @(paged.HasNext ? "" : "disabled")">
+                    <a class="page-link" href="/customers?sortBy=@Model.SortBy&desc=@Model.Desc.ToString().ToLowerInvariant()&page=@(paged.Page + 1)&pageSize=@paged.PageSize">下一頁</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+}

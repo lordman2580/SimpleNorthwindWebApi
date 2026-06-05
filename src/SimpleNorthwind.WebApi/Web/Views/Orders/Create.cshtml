@@ -1,0 +1,126 @@
+@model CreateOrderFormViewModel
+@{
+    ViewData["Title"] = "新增訂單";
+}
+
+@if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">新增訂單</h1>
+    <a href="/orders" class="btn btn-outline-secondary">返回清單</a>
+</div>
+
+<form method="post" asp-controller="OrdersUi" asp-action="Create">
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-12 col-md-6">
+                    <label class="form-label">客戶</label>
+                    <select name="CustomerId" class="form-select" required>
+                        <option value="">— 請選擇客戶 —</option>
+                        @foreach (var c in Model.Customers)
+                        {
+                            <option value="@c.Id" selected="@(Model.Input.CustomerId == c.Id)">@c.Name</option>
+                        }
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h2 class="h6 text-teal mb-0">明細</h2>
+                <button type="button" class="btn btn-sm btn-teal" id="addLineBtn">新增明細</button>
+            </div>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0" id="linesTable">
+                    <thead>
+                        <tr>
+                            <th style="min-width:220px;">產品</th>
+                            <th style="width:120px;">數量</th>
+                            <th style="width:140px;">折扣 %</th>
+                            <th style="width:60px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="linesBody">
+                        <tr class="line-row">
+                            <td>
+                                <select name="Lines[0].ProductId" class="form-select" required>
+                                    <option value="">— 請選擇產品 —</option>
+                                    @foreach (var p in Model.Products)
+                                    {
+                                        <option value="@p.Id">@p.Name</option>
+                                    }
+                                </select>
+                            </td>
+                            <td><input name="Lines[0].OrderQuantities" type="number" min="1" value="1" class="form-control" required /></td>
+                            <td><input name="Lines[0].Discount" type="number" min="0" max="100" step="0.01" value="0" class="form-control" required /></td>
+                            <td><button type="button" class="btn btn-sm btn-outline-danger remove-line">移除</button></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-teal">建立訂單</button>
+        <a href="/orders" class="btn btn-outline-secondary">取消</a>
+    </div>
+</form>
+
+@section Scripts {
+    <script>
+        (function () {
+            // 產品下拉的選項 HTML（新增列時重用）。
+            var productOptions = @Html.Raw(Json.Serialize(Model.Products.Select(p => new { id = p.Id, name = p.Name })));
+            var body = document.getElementById('linesBody');
+
+            function buildOptions() {
+                var html = '<option value="">— 請選擇產品 —</option>';
+                for (var i = 0; i < productOptions.length; i++) {
+                    var o = productOptions[i];
+                    html += '<option value="' + o.id + '">' + o.name + '</option>';
+                }
+                return html;
+            }
+
+            // 新增列後，依目前 tbody 順序重編 name 索引 Lines[0]、Lines[1]...
+            function reindex() {
+                var rows = body.querySelectorAll('tr.line-row');
+                for (var i = 0; i < rows.length; i++) {
+                    var sel = rows[i].querySelector('select');
+                    var inputs = rows[i].querySelectorAll('input[type=number]');
+                    sel.name = 'Lines[' + i + '].ProductId';
+                    inputs[0].name = 'Lines[' + i + '].OrderQuantities';
+                    inputs[1].name = 'Lines[' + i + '].Discount';
+                }
+            }
+
+            function addRow() {
+                var tr = document.createElement('tr');
+                tr.className = 'line-row';
+                tr.innerHTML =
+                    '<td><select class="form-select" required>' + buildOptions() + '</select></td>' +
+                    '<td><input type="number" min="1" value="1" class="form-control" required /></td>' +
+                    '<td><input type="number" min="0" max="100" step="0.01" value="0" class="form-control" required /></td>' +
+                    '<td><button type="button" class="btn btn-sm btn-outline-danger remove-line">移除</button></td>';
+                body.appendChild(tr);
+                reindex();
+            }
+
+            document.getElementById('addLineBtn').addEventListener('click', addRow);
+
+            body.addEventListener('click', function (e) {
+                if (e.target && e.target.classList.contains('remove-line')) {
+                    var rows = body.querySelectorAll('tr.line-row');
+                    if (rows.length <= 1) { return; } // 至少保留一列
+                    e.target.closest('tr').remove();
+                    reindex();
+                }
+            });
+        })();
+    </script>
+}

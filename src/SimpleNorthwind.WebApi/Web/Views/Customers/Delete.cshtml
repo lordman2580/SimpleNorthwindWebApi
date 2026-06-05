@@ -1,0 +1,38 @@
+@model CustomerFormViewModel
+@{
+    ViewData["Title"] = "刪除客戶";
+}
+
+@if (TempData["Error"] is string err)
+{
+    <div class="alert alert-danger">@err</div>
+}
+
+<h1 class="h3 mb-3">刪除客戶</h1>
+
+<div class="card shadow-sm border-0" style="max-width: 560px;">
+    <div class="card-body">
+        <div class="alert alert-warning">確定要刪除以下客戶嗎？此操作無法復原。</div>
+
+        <dl class="row mb-3">
+            <dt class="col-sm-4">公司名稱</dt>
+            <dd class="col-sm-8">@Model.CompanyName</dd>
+
+            <dt class="col-sm-4">客戶代碼</dt>
+            <dd class="col-sm-8">@Model.CustomerId</dd>
+
+            @if (!string.IsNullOrWhiteSpace(Model.ContactName))
+            {
+                <dt class="col-sm-4">聯絡人</dt>
+                <dd class="col-sm-8">@Model.ContactName</dd>
+            }
+        </dl>
+
+        <form asp-controller="CustomersUi" asp-action="DeleteConfirmed" asp-route-id="@Model.CustomerId" method="post">
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-danger">確認刪除</button>
+                <a href="/customers/@Model.CustomerId" class="btn btn-outline-secondary">取消</a>
+            </div>
+        </form>
+    </div>
+</div>
