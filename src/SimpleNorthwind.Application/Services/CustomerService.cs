@@ -13,8 +13,10 @@ public sealed class CustomerService(ICustomerRepository customers) : ICustomerSe
         var customer = new Customer
         {
             CompanyName = request.CompanyName,
+            ContactName = request.ContactName,
             ContactNumber = request.ContactNumber,
             ContactTitle = request.ContactTitle,
+            Email = request.Email,
             CreateDate = DateTime.UtcNow,
             CreateUser = actingUser,
             IsOutContacted = false,
@@ -33,8 +35,10 @@ public sealed class CustomerService(ICustomerRepository customers) : ICustomerSe
 
         // 未修改任何欄位 → 不寫 DB，回 400（與庫存不足同款 ProblemDetails）。
         if (request.CompanyName == customer.CompanyName &&
+            request.ContactName == customer.ContactName &&
             request.ContactNumber == customer.ContactNumber &&
             request.ContactTitle == customer.ContactTitle &&
+            request.Email == customer.Email &&
             request.IsOutContacted == customer.IsOutContacted &&
             request.OutContactedDate == customer.OutContactedDate)
         {
@@ -42,8 +46,10 @@ public sealed class CustomerService(ICustomerRepository customers) : ICustomerSe
         }
 
         customer.CompanyName = request.CompanyName;
+        customer.ContactName = request.ContactName;
         customer.ContactNumber = request.ContactNumber;
         customer.ContactTitle = request.ContactTitle;
+        customer.Email = request.Email;
         customer.IsOutContacted = request.IsOutContacted;
         customer.OutContactedDate = request.OutContactedDate;
 
@@ -75,5 +81,6 @@ public sealed class CustomerService(ICustomerRepository customers) : ICustomerSe
     }
 
     private static CustomerDto ToDto(Customer c) =>
-        new(c.CustomerId, c.CompanyName, c.ContactNumber, c.ContactTitle, c.CreateDate, c.CreateUser, c.IsOutContacted, c.OutContactedDate);
+        new(c.CustomerId, c.CompanyName, c.ContactName, c.ContactNumber, c.ContactTitle, c.Email,
+            c.CreateDate, c.CreateUser, c.IsOutContacted, c.OutContactedDate);
 }

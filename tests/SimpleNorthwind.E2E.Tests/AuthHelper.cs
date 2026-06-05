@@ -1,6 +1,9 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace SimpleNorthwind.E2E.Tests;
 
@@ -9,6 +12,32 @@ internal static class AuthHelper
 {
     public const int SeedEmployeeId = 1;
     public const string SeedPassword = "P@ssw0rd!";
+    public const string SeedEmployeeName = "Nancy Davolio";
+
+    private static readonly Regex AntiforgeryRegex =
+        new("name=\"__RequestVerificationToken\"[^>]*value=\"([^\"]+)\"", RegexOptions.Compiled);
+
+    /// <summary>以 UI 流程（GET 登入頁取 antiforgery → POST 員工編號登入）建立帶 Cookie 的已登入 HttpClient。</summary>
+    public static async Task<HttpClient> LoginUiAsync(
+        this CustomWebApplicationFactory factory, int employeeId = SeedEmployeeId, string password = SeedPassword)
+    {
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+        var page = await client.GetAsync("/account/login");
+        page.EnsureSuccessStatusCode();
+        var token = AntiforgeryRegex.Match(await page.Content.ReadAsStringAsync()).Groups[1].Value;
+
+        var post = await client.PostAsync("/account/login", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["LoginMode"] = "id",
+            ["EmployeeId"] = employeeId.ToString(),
+            ["Password"] = password,
+            ["__RequestVerificationToken"] = token,
+        }));
+        if (post.StatusCode != HttpStatusCode.Redirect)
+            throw new InvalidOperationException($"UI 登入失敗：{post.StatusCode}");
+        return client;
+    }
 
     public static async Task<string> LoginAndGetTokenAsync(
         HttpClient client, int employeeId = SeedEmployeeId, string password = SeedPassword)

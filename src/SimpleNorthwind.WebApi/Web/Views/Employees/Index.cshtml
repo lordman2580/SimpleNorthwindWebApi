@@ -1,0 +1,50 @@
+@model IReadOnlyList<EmployeeViewModel>
+@{ ViewData["Title"] = "員工"; }
+
+<div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="h4 mb-0">員工名冊</h1>
+    <span class="text-muted small">共 @Model.Count 位</span>
+</div>
+
+@if (Model.Count == 0)
+{
+    <div class="text-muted py-5 text-center">目前沒有員工資料。</div>
+}
+else
+{
+    <div class="row g-3">
+        @foreach (var emp in Model)
+        {
+            <div class="col-12 col-sm-6 col-lg-4">
+                <div class="card h-100 shadow-sm border-0">
+                    <div class="card-body">
+                        <div class="d-flex align-items-start justify-content-between mb-2">
+                            <h2 class="h5 mb-0">@emp.FullName</h2>
+                            @if (emp.IsResigned)
+                            {
+                                <span class="badge bg-secondary">@emp.StatusText</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-success">@emp.StatusText</span>
+                            }
+                        </div>
+                        <dl class="row mb-0 small">
+                            <dt class="col-4 text-muted fw-normal">職稱</dt>
+                            <dd class="col-8 mb-1">@emp.Title.DisplayOrDash()</dd>
+
+                            <dt class="col-4 text-muted fw-normal">分機</dt>
+                            <dd class="col-8 mb-1">@emp.PhoneExtNumber.DisplayOrDash()</dd>
+
+                            <dt class="col-4 text-muted fw-normal">電話</dt>
+                            <dd class="col-8 mb-1">@emp.PhoneNumber.DisplayOrDash()</dd>
+
+                            <dt class="col-4 text-muted fw-normal">到職</dt>
+                            <dd class="col-8 mb-0">@emp.HireDate.DisplayOrDash(DateFmt.Date)</dd>
+                        </dl>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}

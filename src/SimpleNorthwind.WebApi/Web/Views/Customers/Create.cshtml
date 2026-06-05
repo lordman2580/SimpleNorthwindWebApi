@@ -1,0 +1,23 @@
+@model CustomerFormViewModel
+@{
+    ViewData["Title"] = "新增客戶";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">新增客戶</h1>
+    <a href="/customers" class="btn btn-outline-secondary">返回清單</a>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body">
+        <div asp-validation-summary="All" class="text-danger small mb-3"></div>
+
+        <form asp-controller="CustomersUi" asp-action="Create" method="post" autocomplete="off">
+            <partial name="~/Web/Views/Customers/_CustomerFormFields.cshtml" model="Model" />
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-teal">儲存</button>
+                <a href="/customers" class="btn btn-outline-secondary">取消</a>
+            </div>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,138 @@
+@model OrderIndexViewModel
+@{
+    ViewData["Title"] = "訂單";
+
+    var paged = Model.Page;
+
+    // 組裝目前篩選的 query string（供分頁／頁籤／排序連結沿用，編碼走 QueryString.Build）。
+    string BuildQuery(string? tab = null, int? p = null, string? sort = null, bool? desc = null) => QueryString.Build("/orders",
+        ("statusTab", tab ?? Model.StatusTab),
+        ("employeeName", Model.EmployeeName),
+        ("fromDate", Model.FromDate?.ToString(DateFmt.Date)),
+        ("toDate", Model.ToDate?.ToString(DateFmt.Date)),
+        ("sortBy", sort ?? Model.SortBy),
+        ("desc", desc ?? Model.Desc),
+        ("page", p ?? paged.Page),
+        ("pageSize", paged.PageSize));
+
+    var tabs = new[]
+    {
+        ("all", "全部"),
+        ("normal", "正常"),
+        ("paidoff", "已付清"),
+        ("canceled", "已取消"),
+    };
+
+    // 排序連結：點同欄反轉、他欄升冪（SortHeaders 統一策略）。
+    string SortHref(string field) => BuildQuery(sort: field, desc: SortHeaders.NextDesc(field, Model.SortBy, Model.Desc), p: 1);
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">訂單</h1>
+    <a href="/orders/create" class="btn btn-teal">新增訂單</a>
+</div>
+
+<ul class="nav nav-tabs mb-3">
+    @foreach (var (key, text) in tabs)
+    {
+        <li class="nav-item">
+            <a class="nav-link @(Model.StatusTab == key ? "active" : null)" href="@BuildQuery(tab: key, p: 1)">@text</a>
+        </li>
+    }
+</ul>
+
+<form method="get" action="/orders" class="row g-2 align-items-end mb-3">
+    <input type="hidden" name="statusTab" value="@Model.StatusTab" />
+    <input type="hidden" name="sortBy" value="@Model.SortBy" />
+    <input type="hidden" name="desc" value="@Model.Desc.ToString().ToLowerInvariant()" />
+    <input type="hidden" name="pageSize" value="@paged.PageSize" />
+    <div class="col-12 col-md-4">
+        <label class="form-label small mb-1">員工</label>
+        <select name="employeeName" class="form-select">
+            <option value="">全部員工</option>
+            @foreach (var name in Model.EmployeeNames)
+            {
+                <option value="@name" selected="@(string.Equals(Model.EmployeeName, name, StringComparison.OrdinalIgnoreCase))">@name</option>
+            }
+        </select>
+    </div>
+    <div class="col-6 col-md-3">
+        <label class="form-label small mb-1">訂購日（起）</label>
+        <input type="date" name="fromDate" class="form-control" value="@(Model.FromDate?.ToString(DateFmt.Date))" />
+    </div>
+    <div class="col-6 col-md-3">
+        <label class="form-label small mb-1">訂購日（迄）</label>
+        <input type="date" name="toDate" class="form-control" value="@(Model.ToDate?.ToString(DateFmt.Date))" />
+    </div>
+    <div class="col-12 col-md-2 d-flex gap-2">
+        <button type="submit" class="btn btn-teal flex-grow-1">篩選</button>
+        <a href="/orders?statusTab=@Model.StatusTab" class="btn btn-outline-secondary">清除</a>
+    </div>
+</form>
+
+<div class="card">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th>訂單</th>
+                    <th><a class="text-decoration-none text-teal" href="@SortHref("customer")">客戶@(SortHeaders.Arrow("customer", Model.SortBy, Model.Desc))</a></th>
+                    <th>員工</th>
+                    <th><a class="text-decoration-none text-teal" href="@SortHref("date")">訂購日@(SortHeaders.Arrow("date", Model.SortBy, Model.Desc))</a></th>
+                    <th>狀態</th>
+                    <th class="text-end">筆數</th>
+                    <th class="text-end"><a class="text-decoration-none text-teal" href="@SortHref("total")">金額@(SortHeaders.Arrow("total", Model.SortBy, Model.Desc))</a></th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (paged.Items.Count == 0)
+                {
+                    <empty-row colspan="7" message="沒有符合條件的訂單。" />
+                }
+                else
+                {
+                    @foreach (var o in paged.Items)
+                    {
+                        <tr>
+                            <td><a class="text-decoration-none text-teal fw-semibold" href="/orders/@o.OrderId">訂單 #@o.OrderId</a></td>
+                            <td>@o.CustomerName</td>
+                            <td>@o.EmployeeName</td>
+                            <td>@o.OrderDate.ToString(DateFmt.Date)</td>
+                            <td><status-badge status="@o.Status" /></td>
+                            <td class="text-end">@o.ItemCount</td>
+                            <td class="text-end">@o.Total.ToString("N2")</td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="d-flex flex-wrap justify-content-between align-items-center mt-3 gap-2">
+    <div class="text-muted small">
+        共 @paged.TotalCount 筆
+        @if (paged.TotalCount > 0)
+        {
+            <text>，顯示 @paged.FirstItemIndex–@paged.LastItemIndex</text>
+        }
+    </div>
+    <div class="d-flex align-items-center gap-2">
+        <form method="get" action="/orders" class="d-flex align-items-center gap-1">
+            <input type="hidden" name="statusTab" value="@Model.StatusTab" />
+            <input type="hidden" name="employeeName" value="@Model.EmployeeName" />
+            <input type="hidden" name="fromDate" value="@(Model.FromDate?.ToString(DateFmt.Date))" />
+            <input type="hidden" name="toDate" value="@(Model.ToDate?.ToString(DateFmt.Date))" />
+            <input type="hidden" name="sortBy" value="@Model.SortBy" />
+            <input type="hidden" name="desc" value="@Model.Desc.ToString().ToLowerInvariant()" />
+            <label class="form-label small mb-0">每頁</label>
+            <select name="pageSize" class="form-select form-select-sm" style="width:auto;" onchange="this.form.submit()">
+                @foreach (var size in PagedViewModel<OrderListItemViewModel>.PageSizeOptions)
+                {
+                    <option value="@size" selected="@(paged.PageSize == size)">@size</option>
+                }
+            </select>
+        </form>
+        <partial name="~/Web/Views/Shared/_Pagination.cshtml" model="@(new PaginationModel { Page = paged.Page, TotalPages = paged.TotalPages, HasPrevious = paged.HasPrevious, HasNext = paged.HasNext, PageHref = p => BuildQuery(p: p) })" />
+    </div>
+</div>

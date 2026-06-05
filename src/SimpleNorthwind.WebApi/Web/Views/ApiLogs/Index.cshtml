@@ -1,0 +1,181 @@
+@model ApiLogIndexViewModel
+@{
+    ViewData["Title"] = "API 稽核";
+    var f = Model.Filter;
+    var p = Model.Page;
+
+    // 分頁連結：保留目前過濾條件，覆寫 page（編碼走 QueryString.Build）。
+    string PageHref(int page) => QueryString.Build("/apilogs",
+        ("userId", f.UserId),
+        ("method", f.Method),
+        ("onlyErrors", f.OnlyErrors ? "true" : null),
+        ("from", f.From?.ToString("yyyy-MM-ddTHH:mm")),
+        ("to", f.To?.ToString("yyyy-MM-ddTHH:mm")),
+        ("pageSize", p.PageSize),
+        ("page", page));
+
+    string MethodBadge(string method) => method?.ToUpperInvariant() switch
+    {
+        "GET" => "bg-secondary",
+        "POST" => "bg-success",
+        "PUT" => "bg-warning text-dark",
+        "DELETE" => "bg-danger",
+        _ => "bg-light text-dark border"
+    };
+
+    string StatusBadge(int? status) => status switch
+    {
+        >= 500 => "bg-danger",
+        >= 400 => "bg-warning text-dark",
+        _ => "bg-success"
+    };
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <h1 class="h3 mb-1">API 稽核</h1>
+        <p class="text-muted small mb-0">系統所有 API 呼叫的稽核紀錄（唯讀）。點「檢視」可展開完整回應內容。</p>
+    </div>
+</div>
+
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-body">
+        <form method="get" asp-controller="ApiLogsUi" asp-action="Index" class="row g-3 align-items-end">
+            <input type="hidden" name="pageSize" value="@p.PageSize" />
+            @if (f.UserId is not null)
+            {
+                <input type="hidden" name="userId" value="@f.UserId" />
+            }
+            <div class="col-12 col-sm-6 col-md-3">
+                <label class="form-label small mb-1">方法</label>
+                <select name="method" class="form-select">
+                    <option value="" selected="@string.IsNullOrEmpty(f.Method)">全部</option>
+                    <option value="GET" selected="@(f.Method == "GET")">GET</option>
+                    <option value="POST" selected="@(f.Method == "POST")">POST</option>
+                    <option value="PUT" selected="@(f.Method == "PUT")">PUT</option>
+                    <option value="DELETE" selected="@(f.Method == "DELETE")">DELETE</option>
+                </select>
+            </div>
+            <div class="col-6 col-sm-3 col-md-3">
+                <label class="form-label small mb-1">起（含）</label>
+                <input type="datetime-local" name="from" class="form-control"
+                       value="@(f.From?.ToString("yyyy-MM-ddTHH:mm"))" />
+            </div>
+            <div class="col-6 col-sm-3 col-md-3">
+                <label class="form-label small mb-1">迄（含）</label>
+                <input type="datetime-local" name="to" class="form-control"
+                       value="@(f.To?.ToString("yyyy-MM-ddTHH:mm"))" />
+            </div>
+            <div class="col-12 col-md-3 d-flex align-items-center gap-3">
+                <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" name="onlyErrors" value="true"
+                           id="onlyErrors" @(f.OnlyErrors ? "checked" : "") />
+                    <label class="form-check-label" for="onlyErrors">僅異常</label>
+                </div>
+                <button type="submit" class="btn btn-teal flex-grow-1">查詢</button>
+                <a href="/apilogs" class="btn btn-outline-secondary">清除</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@* 表格永遠渲染（即使 0 筆）：tbody#logRows 供即時推播 prepend；空狀態置一筆 placeholder，JS 首次插入時移除。 *@
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="text-nowrap">時間</th>
+                    <th>方法</th>
+                    <th>路徑</th>
+                    <th>狀態</th>
+                    <th>操作者</th>
+                    <th>IP</th>
+                    <th class="text-end">耗時</th>
+                    <th>結果</th>
+                </tr>
+            </thead>
+            <tbody id="logRows">
+                @if (p.TotalCount == 0)
+                {
+                    <tr id="logEmpty"><td colspan="8" class="text-center text-muted py-5">查無符合條件的稽核紀錄。</td></tr>
+                }
+                @foreach (var log in p.Items)
+                {
+                    <tr>
+                        <td class="text-nowrap small">@log.SummaryDate.ToString(DateFmt.DateTime)</td>
+                        <td><span class="badge @MethodBadge(log.Method)">@log.Method</span></td>
+                        <td class="small"><code>@log.Path</code></td>
+                        <td>
+                            @if (log.ResponseStatus is null)
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                            else
+                            {
+                                <span class="badge @StatusBadge(log.ResponseStatus)">@log.ResponseStatus</span>
+                            }
+                        </td>
+                        <td>@(log.UserName ?? "系統 / 匿名")</td>
+                        <td class="small text-muted">@log.ClientIp.DisplayOrDash()</td>
+                        <td class="text-end small">@(log.DurationMs is null ? "—" : $"{log.DurationMs} ms")</td>
+                        <td class="small">
+                            @if (string.IsNullOrEmpty(log.ResponseResultFull))
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                            else
+                            {
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="text-truncate d-inline-block" style="max-width:260px;">@log.ResponseResultPreview</span>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary js-view-result flex-shrink-0"
+                                            data-result="@log.ResponseResultFull">檢視</button>
+                                </div>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@if (p.TotalCount > 0)
+{
+    <div class="d-flex flex-wrap justify-content-between align-items-center mt-3">
+        <div class="text-muted small">
+            顯示第 @p.FirstItemIndex–@p.LastItemIndex 筆，共 @p.TotalCount 筆
+        </div>
+        <partial name="~/Web/Views/Shared/_Pagination.cshtml" model="@(new PaginationModel { Page = p.Page, TotalPages = p.TotalPages, HasPrevious = p.HasPrevious, HasNext = p.HasNext, PageHref = PageHref })" />
+    </div>
+}
+
+<!-- 共用結果檢視彈窗 -->
+<div class="modal fade" id="resultModal" tabindex="-1" aria-labelledby="resultModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="resultModalLabel">回應內容</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="關閉"></button>
+            </div>
+            <div class="modal-body">
+                <pre id="resultModalBody" class="mb-0 small" style="white-space:pre-wrap;word-break:break-word;"></pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* 當前過濾條件供 apilog-live.js 判斷推播是否符合（不符不顯示，見 26-即時稽核推播 §7）。 *@
+<script type="application/json" id="logFilter">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new
+{
+    method = f.Method,
+    onlyErrors = f.OnlyErrors,
+    userId = f.UserId,
+    from = f.From?.ToString("yyyy-MM-ddTHH:mm"),
+    to = f.To?.ToString("yyyy-MM-ddTHH:mm")
+}))</script>
+
+@section Scripts {
+    <script src="~/lib/signalr/signalr.min.js"></script>
+    <script src="~/js/apilog-live.js" asp-append-version="true"></script>
+}

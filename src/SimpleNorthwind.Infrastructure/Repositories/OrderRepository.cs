@@ -1,5 +1,6 @@
 using Dapper;
 using SimpleNorthwind.Application.Abstractions.Persistence;
+using SimpleNorthwind.Application.Orders;
 using SimpleNorthwind.Domain.Entities;
 using SimpleNorthwind.Infrastructure.Persistence;
 using static SimpleNorthwind.Infrastructure.Persistence.SqlNaming;
@@ -72,4 +73,32 @@ internal sealed class OrderRepository(IUnitOfWork uow) : IOrderRepository
     public async Task TouchModifiedAsync(int orderId, int modifiedEmployeeId, DateTime modifiedDateUtc, CancellationToken ct = default) =>
         await uow.Connection.ExecuteAsync(
             new CommandDefinition(TouchModifiedSql, new { orderId, modifiedEmployeeId, modifiedDateUtc }, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
+
+    // --- enrich 讀（JOIN 客戶 / 員工 / 修改者姓名） ---
+
+    private static readonly string ViewSelect =
+        $"""
+        SELECT o.{Col(nameof(Order.OrderId))}, o.{Col(nameof(Order.CustomerId))}, c.{Col(nameof(Customer.CompanyName))} AS {Col(nameof(OrderHeaderRow.CustomerName))},
+               o.{Col(nameof(Order.EmployeeId))}, (e.{Col(nameof(Employee.FirstName))} + ' ' + e.{Col(nameof(Employee.LastName))}) AS {Col(nameof(OrderHeaderRow.EmployeeName))},
+               o.{Col(nameof(Order.OrderDate))}, o.{Col(nameof(Order.ModifiedEmployeeId))}, (m.{Col(nameof(Employee.FirstName))} + ' ' + m.{Col(nameof(Employee.LastName))}) AS {Col(nameof(OrderHeaderRow.ModifiedEmployeeName))},
+               o.{Col(nameof(Order.ModifiedDate))}, o.{Col(nameof(Order.IsCanceled))}, o.{Col(nameof(Order.IsPaidoff))}
+        FROM dbo.orders o
+        JOIN dbo.customers c ON c.{Col(nameof(Customer.CustomerId))} = o.{Col(nameof(Order.CustomerId))}
+        JOIN dbo.employees e ON e.{Col(nameof(Employee.EmployeeId))} = o.{Col(nameof(Order.EmployeeId))}
+        LEFT JOIN dbo.employees m ON m.{Col(nameof(Employee.EmployeeId))} = o.{Col(nameof(Order.ModifiedEmployeeId))}
+        """;
+
+    private static readonly string GetViewSql = $"{ViewSelect} WHERE o.{Col(nameof(Order.OrderId))} = @orderId;";
+    private static readonly string ListViewsSql = $"{ViewSelect} ORDER BY o.{Col(nameof(Order.OrderId))};";
+
+    public async Task<OrderHeaderRow?> GetViewAsync(int orderId, CancellationToken ct = default) =>
+        await uow.Connection.QuerySingleOrDefaultAsync<OrderHeaderRow>(
+            new CommandDefinition(GetViewSql, new { orderId }, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
+
+    public async Task<IReadOnlyList<OrderHeaderRow>> ListViewsAsync(CancellationToken ct = default)
+    {
+        var rows = await uow.Connection.QueryAsync<OrderHeaderRow>(
+            new CommandDefinition(ListViewsSql, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
+        return rows.ToList();
+    }
 }

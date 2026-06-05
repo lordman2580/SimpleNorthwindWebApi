@@ -1,0 +1,37 @@
+@model CustomerFormViewModel
+@{
+    ViewData["Title"] = "編輯客戶";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">編輯客戶</h1>
+    <a href="/customers/@Model.CustomerId" class="btn btn-outline-secondary">返回詳情</a>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="card-body">
+        <div asp-validation-summary="All" class="text-danger small mb-3"></div>
+
+        <form asp-controller="CustomersUi" asp-action="Edit" asp-route-id="@Model.CustomerId" method="post" autocomplete="off">
+            <input type="hidden" asp-for="CustomerId" />
+            <partial name="~/Web/Views/Customers/_CustomerFormFields.cshtml" model="Model" />
+            <div class="row g-3 align-items-end">
+                <div class="col-md-6 mb-3">
+                    <div class="form-check">
+                        <input asp-for="IsOutContacted" class="form-check-input" />
+                        <label asp-for="IsOutContacted" class="form-check-label"></label>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label asp-for="OutContactedDate" class="form-label"></label>
+                    <input asp-for="OutContactedDate" type="date" class="form-control" />
+                    <span asp-validation-for="OutContactedDate" class="text-danger small"></span>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="submit" class="btn btn-teal">儲存</button>
+                <a href="/customers/@Model.CustomerId" class="btn btn-outline-secondary">取消</a>
+            </div>
+        </form>
+    </div>
+</div>

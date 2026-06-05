@@ -1,0 +1,15 @@
+@model PaginationModel
+@if (Model.TotalPages > 1)
+{
+    <nav aria-label="分頁">
+        <ul class="pagination pagination-sm mb-0">
+            <li class="page-item @(Model.HasPrevious ? "" : "disabled")">
+                <a class="page-link" href="@Model.PageHref(Model.Page - 1)">上一頁</a>
+            </li>
+            <li class="page-item disabled"><span class="page-link">第 @Model.Page / @Model.TotalPages 頁</span></li>
+            <li class="page-item @(Model.HasNext ? "" : "disabled")">
+                <a class="page-link" href="@Model.PageHref(Model.Page + 1)">下一頁</a>
+            </li>
+        </ul>
+    </nav>
+}

@@ -14,8 +14,10 @@ public sealed class CreateCustomerValidatorTests
     {
         var request = new CreateCustomerRequest(
             CompanyName: "",
+            ContactName: null,
             ContactNumber: null,
-            ContactTitle: null);
+            ContactTitle: null,
+            Email: null);
 
         var result = _validator.TestValidate(request);
         result.ShouldHaveValidationErrorFor(x => x.CompanyName);
@@ -26,8 +28,10 @@ public sealed class CreateCustomerValidatorTests
     {
         var request = new CreateCustomerRequest(
             CompanyName: new string('A', 151),
+            ContactName: null,
             ContactNumber: null,
-            ContactTitle: null);
+            ContactTitle: null,
+            Email: null);
 
         var result = _validator.TestValidate(request);
         result.ShouldHaveValidationErrorFor(x => x.CompanyName);
@@ -38,8 +42,10 @@ public sealed class CreateCustomerValidatorTests
     {
         var request = new CreateCustomerRequest(
             CompanyName: "Northwind Traders",
+            ContactName: "Maria Anders",
             ContactNumber: "02-12345678",
-            ContactTitle: "Manager");
+            ContactTitle: "Manager",
+            Email: "maria@northwind.test");
 
         var result = _validator.TestValidate(request);
         result.ShouldNotHaveAnyValidationErrors();
@@ -55,8 +61,10 @@ public sealed class UpdateCustomerValidatorTests
     {
         var request = new UpdateCustomerRequest(
             CompanyName: "",
+            ContactName: null,
             ContactNumber: null,
             ContactTitle: null,
+            Email: null,
             IsOutContacted: false,
             OutContactedDate: null);
 
@@ -69,8 +77,10 @@ public sealed class UpdateCustomerValidatorTests
     {
         var request = new UpdateCustomerRequest(
             CompanyName: new string('B', 151),
+            ContactName: null,
             ContactNumber: null,
             ContactTitle: null,
+            Email: null,
             IsOutContacted: false,
             OutContactedDate: null);
 
@@ -83,8 +93,10 @@ public sealed class UpdateCustomerValidatorTests
     {
         var request = new UpdateCustomerRequest(
             CompanyName: "Northwind Traders",
+            ContactName: "Maria Anders",
             ContactNumber: "02-12345678",
             ContactTitle: "Director",
+            Email: "maria@northwind.test",
             IsOutContacted: false,
             OutContactedDate: null);
 

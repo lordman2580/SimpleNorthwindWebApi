@@ -1,0 +1,63 @@
+@model EditOrderFormViewModel
+@{
+    ViewData["Title"] = $"編輯訂單 #{Model.OrderId}";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">編輯訂單 #@Model.OrderId</h1>
+    <a href="/orders/@Model.OrderId" class="btn btn-outline-secondary">返回明細</a>
+</div>
+
+<div class="alert alert-info small">
+    若此訂單已被他人變更，儲存時會偵測版本衝突並提示重新載入。客戶與產品項目不可變更，僅能調整數量與折扣。
+</div>
+
+<form method="post" asp-controller="OrdersUi" asp-action="Edit" asp-route-id="@Model.OrderId">
+    <div class="card mb-3">
+        <div class="card-body">
+            <dl class="row mb-0 small">
+                <dt class="col-3 col-md-2 text-muted">客戶</dt>
+                <dd class="col-9 col-md-10">@Model.CustomerName</dd>
+            </dl>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <h2 class="h6 text-teal mb-3">明細</h2>
+            <div class="table-responsive">
+                <table class="table align-middle mb-0">
+                    <thead>
+                        <tr>
+                            <th>產品</th>
+                            <th class="text-end">單價</th>
+                            <th style="width:140px;">數量</th>
+                            <th style="width:160px;">折扣 %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (var i = 0; i < Model.Lines.Count; i++)
+                        {
+                            var line = Model.Lines[i];
+                            <tr>
+                                <td>
+                                    @line.ProductName
+                                    <input type="hidden" name="Lines[@i].ProductId" value="@line.ProductId" />
+                                    <input type="hidden" name="Lines[@i].Version" value="@line.Version" />
+                                </td>
+                                <td class="text-end">@line.UnitPrice.ToString("N2")</td>
+                                <td><input name="Lines[@i].OrderQuantities" type="number" min="1" value="@line.Quantity" class="form-control" required /></td>
+                                <td><input name="Lines[@i].Discount" type="number" min="0" max="100" step="0.01" value="@line.Discount" class="form-control" required /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-teal">儲存變更</button>
+        <a href="/orders/@Model.OrderId" class="btn btn-outline-secondary">取消</a>
+    </div>
+</form>

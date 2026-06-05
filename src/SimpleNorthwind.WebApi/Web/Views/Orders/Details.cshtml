@@ -1,0 +1,105 @@
+@model OrderDetailViewModel
+@{
+    ViewData["Title"] = $"訂單 #{Model.OrderId}";
+
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex align-items-center gap-2">
+        <h1 class="h3 mb-0">訂單 #@Model.OrderId</h1>
+        <status-badge status="@Model.Status" />
+    </div>
+    <div class="d-flex gap-2">
+        <a href="/orders" class="btn btn-outline-secondary">返回清單</a>
+        @if (!Model.IsCanceled)
+        {
+            <a href="/orders/@Model.OrderId/edit" class="btn btn-teal">編輯</a>
+            <form method="post" asp-controller="OrdersUi" asp-action="Cancel" asp-route-id="@Model.OrderId"
+                  onsubmit="return confirm('確定要取消訂單 #@Model.OrderId 嗎？');" class="d-inline">
+                <button type="submit" class="btn btn-outline-danger">取消訂單</button>
+            </form>
+        }
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-md-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h2 class="h6 text-teal mb-3">客戶</h2>
+                <dl class="row mb-0 small">
+                    <dt class="col-4 text-muted">公司</dt>
+                    <dd class="col-8">@Model.CustomerName</dd>
+                    <dt class="col-4 text-muted">客戶代碼</dt>
+                    <dd class="col-8">@Model.CustomerId</dd>
+                    <dt class="col-4 text-muted">聯絡人</dt>
+                    <dd class="col-8">@Model.CustomerContactName.DisplayOrDash()</dd>
+                    <dt class="col-4 text-muted">電話</dt>
+                    <dd class="col-8">@Model.CustomerContactNumber.DisplayOrDash()</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h2 class="h6 text-teal mb-3">訂單資訊</h2>
+                <dl class="row mb-0 small">
+                    <dt class="col-4 text-muted">狀態</dt>
+                    <dd class="col-8"><status-badge status="@Model.Status" /></dd>
+                    <dt class="col-4 text-muted">建立員工</dt>
+                    <dd class="col-8">@Model.EmployeeName</dd>
+                    <dt class="col-4 text-muted">訂購日</dt>
+                    <dd class="col-8">@Model.OrderDate.ToString(DateFmt.DateTime)</dd>
+                </dl>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <h2 class="h6 text-teal mb-3">明細</h2>
+        <div class="table-responsive">
+            <table class="table align-middle mb-0">
+                <thead>
+                    <tr>
+                        <th>產品</th>
+                        <th class="text-end">單價</th>
+                        <th class="text-end">數量</th>
+                        <th class="text-end">折扣</th>
+                        <th class="text-end">小計</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var line in Model.Lines)
+                    {
+                        <tr>
+                            <td>@line.ProductName</td>
+                            <td class="text-end">@line.UnitPrice.ToString("N2")</td>
+                            <td class="text-end">@line.Quantity</td>
+                            <td class="text-end">@line.Discount.ToString("0.##")%</td>
+                            <td class="text-end">@line.Subtotal.ToString("N2")</td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="4" class="text-end text-muted">商品小計（原價）</td>
+                        <td class="text-end">@Model.GrandSubtotal.ToString("N2")</td>
+                    </tr>
+                    <tr>
+                        <td colspan="4" class="text-end text-muted">折扣</td>
+                        <td class="text-end">@(Model.DiscountTotal > 0 ? "-" : "")@Model.DiscountTotal.ToString("N2")</td>
+                    </tr>
+                    <tr class="fw-bold">
+                        <td colspan="4" class="text-end">總計</td>
+                        <td class="text-end">@Model.GrandTotal.ToString("N2")</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<p class="text-muted small">由 @Model.EmployeeName 建立 · @Model.OrderDate.ToString(DateFmt.DateTime)</p>

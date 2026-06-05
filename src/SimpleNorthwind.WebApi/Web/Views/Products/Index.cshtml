@@ -1,0 +1,100 @@
+@model ProductIndexViewModel
+@{
+    ViewData["Title"] = "產品";
+    var paged = Model.Page;
+
+    string? category = Model.Category;
+
+    // 查詢字串：保留分類 / 排序 / 每頁筆數，覆寫指定鍵（編碼走 QueryString.Build）。
+    string BuildQuery(string? cat, string? sort = null, bool? desc = null, int? p = null, int? size = null) => QueryString.Build("/products",
+        ("category", cat),
+        ("sortBy", sort ?? Model.SortBy),
+        ("desc", desc ?? Model.Desc),
+        ("page", p ?? paged.Page),
+        ("pageSize", size ?? paged.PageSize));
+
+    // 排序連結：點同欄反轉、他欄升冪；保留目前分類。
+    string SortHref(string field) => BuildQuery(category, field, SortHeaders.NextDesc(field, Model.SortBy, Model.Desc), 1);
+}
+
+<div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+    <h1 class="h3 fw-bold mb-0" style="color:#0f766e;">產品</h1>
+    <span class="text-muted small">共 @paged.TotalCount 筆</span>
+</div>
+
+@* 分類 chip 列：全部 + 各分類；目前選取的高亮。*@
+<div class="mb-3 d-flex flex-wrap gap-2">
+    <a href="@BuildQuery(cat: null, p: 1)"
+       class="btn btn-sm @(string.IsNullOrWhiteSpace(category) ? "btn-teal" : "btn-outline-secondary")">
+        全部
+    </a>
+    @foreach (var cat in Model.Categories)
+    {
+        var isActive = string.Equals(category, cat, StringComparison.Ordinal);
+        <a href="@BuildQuery(cat: cat, p: 1)" class="btn btn-sm @(isActive ? "btn-teal" : "btn-outline-secondary")">@cat</a>
+    }
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th><a href="@SortHref("name")" class="text-decoration-none text-dark">產品名稱@(SortHeaders.Arrow("name", Model.SortBy, Model.Desc))</a></th>
+                    <th><a href="@SortHref("category")" class="text-decoration-none text-dark">分類@(SortHeaders.Arrow("category", Model.SortBy, Model.Desc))</a></th>
+                    <th class="text-end"><a href="@SortHref("price")" class="text-decoration-none text-dark">單價@(SortHeaders.Arrow("price", Model.SortBy, Model.Desc))</a></th>
+                    <th class="text-end"><a href="@SortHref("stock")" class="text-decoration-none text-dark">庫存@(SortHeaders.Arrow("stock", Model.SortBy, Model.Desc))</a></th>
+                    <th>狀態</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (paged.Items.Count == 0)
+                {
+                    <empty-row colspan="5" message="查無產品資料。" />
+                }
+                else
+                {
+                    @foreach (var p in paged.Items)
+                    {
+                        <tr>
+                            <td class="fw-semibold">@p.ProductName</td>
+                            <td>@p.CategoryName</td>
+                            <td class="text-end">@p.UnitPrice.ToString("N2")</td>
+                            <td class="text-end">@p.Quantities</td>
+                            <td>
+                                @if (p.StockStatus == "缺貨")
+                                {
+                                    <span class="status-badge badge bg-danger">缺貨</span>
+                                }
+                                else
+                                {
+                                    <span class="status-badge badge bg-success">正常</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@* 每頁筆數 + 分頁列。*@
+<div class="d-flex flex-wrap align-items-center justify-content-between mt-3 gap-2">
+    <div class="d-flex align-items-center gap-2">
+        <span class="text-muted small">每頁</span>
+        <div class="btn-group btn-group-sm" role="group" aria-label="每頁筆數">
+            @foreach (var size in PagedViewModel<ProductViewModel>.PageSizeOptions)
+            {
+                <a href="@BuildQuery(cat: category, size: size, p: 1)"
+                   class="btn @(paged.PageSize == size ? "btn-teal" : "btn-outline-secondary")">@size</a>
+            }
+        </div>
+        @if (paged.TotalCount > 0)
+        {
+            <span class="text-muted small ms-2">顯示第 @paged.FirstItemIndex–@paged.LastItemIndex 筆，共 @paged.TotalCount 筆</span>
+        }
+    </div>
+
+    <partial name="~/Web/Views/Shared/_Pagination.cshtml" model="@(new PaginationModel { Page = paged.Page, TotalPages = paged.TotalPages, HasPrevious = paged.HasPrevious, HasNext = paged.HasNext, PageHref = p => BuildQuery(cat: category, p: p) })" />
+</div>

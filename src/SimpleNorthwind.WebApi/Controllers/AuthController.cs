@@ -32,4 +32,20 @@ public sealed class AuthController(IAuthService authService) : ControllerBase
         var result = await authService.LoginAsync(request, ct);
         return result.ToOk();
     }
+
+    /// <summary>員工以姓名（first + last，<b>case-sensitive</b>）+ 密碼登入並取得 JWT。</summary>
+    /// <remarks>
+    /// 與 <c>POST /api/auth/login</c>（員工編號）並存。姓名比對為**區分大小寫**（序數比對）；
+    /// 為避免帳號列舉，「查無此人」「大小寫不符」「已離職」「密碼錯誤」皆回相同的 401。
+    /// </remarks>
+    /// <response code="200">登入成功，回傳 token 與到期時間。</response>
+    /// <response code="400">請求格式不符（姓名 / 密碼空白）。</response>
+    /// <response code="401">姓名或密碼錯誤（含查無此人 / 大小寫不符 / 已離職）。</response>
+    [HttpPost("login-by-name")]
+    [AllowAnonymous]
+    public async Task<ActionResult<LoginResponse>> LoginByName(LoginByNameRequest request, CancellationToken ct)
+    {
+        var result = await authService.LoginByNameAsync(request, ct);
+        return result.ToOk();
+    }
 }

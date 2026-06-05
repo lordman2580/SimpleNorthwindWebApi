@@ -41,6 +41,13 @@ public sealed class OrderServiceTests
             Version        = version
         };
 
+    // enrich 讀模型（供 BuildDtoAsync 的 GetViewAsync / ListRowsByOrdersAsync 回傳）
+    private static OrderHeaderRow MakeHeader(int id = 1, bool isPaidoff = false, bool isCanceled = false) =>
+        new(id, 10, "Test Customer", 1, "Test Employee", DateTime.UtcNow, null, null, null, isCanceled, isPaidoff);
+
+    private static OrderDetailRow MakeRow(int orderId, int productId, int qty = 5, int version = 1) =>
+        new(orderId, productId, "Test Product", 10m, qty, 0m, version);
+
     // ═════════════════════════════════════════════════════════════════════════
     // CreateAsync
     // ═════════════════════════════════════════════════════════════════════════
@@ -58,7 +65,7 @@ public sealed class OrderServiceTests
             Details:
             [
                 new CreateOrderDetailRequest(productId1, OrderQuantities: 3, Discount: 0m),
-                new CreateOrderDetailRequest(productId2, OrderQuantities: 2, Discount: 0.1m)
+                new CreateOrderDetailRequest(productId2, OrderQuantities: 2, Discount: 10m)
             ]);
 
         // Stock checks pass
@@ -69,18 +76,17 @@ public sealed class OrderServiceTests
         _orders.InsertAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>())
                .Returns(orderId);
 
-        // BuildDtoAsync: GetByIdAsync + ListByOrderAsync after commit
-        var savedOrder = MakeOrder(orderId);
-        _orders.GetByIdAsync(orderId, Arg.Any<CancellationToken>())
-               .Returns(savedOrder);
+        // BuildDtoAsync: GetViewAsync + ListRowsByOrdersAsync after commit
+        _orders.GetViewAsync(orderId, Arg.Any<CancellationToken>())
+               .Returns(MakeHeader(orderId));
 
-        IReadOnlyList<OrderDetail> savedDetails =
+        IReadOnlyList<OrderDetailRow> savedRows =
         [
-            MakeDetail(orderId, productId1, 3),
-            MakeDetail(orderId, productId2, 2)
+            MakeRow(orderId, productId1, 3),
+            MakeRow(orderId, productId2, 2)
         ];
-        _details.ListByOrderAsync(orderId, Arg.Any<CancellationToken>())
-                .Returns(savedDetails);
+        _details.ListRowsByOrdersAsync(Arg.Any<IReadOnlyCollection<int>>(), Arg.Any<CancellationToken>())
+                .Returns(savedRows);
 
         var sut = CreateSut();
 
@@ -258,6 +264,11 @@ public sealed class OrderServiceTests
                  .Returns(true);
         _details.UpdateWithVersionAsync(Arg.Any<OrderDetail>(), Arg.Any<CancellationToken>())
                 .Returns(true);
+
+        // BuildDtoAsync 後置讀
+        _orders.GetViewAsync(orderId, Arg.Any<CancellationToken>()).Returns(MakeHeader(orderId));
+        IReadOnlyList<OrderDetailRow> rows = [MakeRow(orderId, productId, 8)];
+        _details.ListRowsByOrdersAsync(Arg.Any<IReadOnlyCollection<int>>(), Arg.Any<CancellationToken>()).Returns(rows);
 
         var request = new UpdateOrderRequest(
             Details: [new UpdateOrderDetailRequest(productId, OrderQuantities: 8, Discount: 0m, Version: 1)]);

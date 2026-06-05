@@ -46,9 +46,9 @@ public sealed class CreateOrderValidatorTests
 
     [Theory]
     [InlineData(-0.01)]
-    [InlineData(1.01)]
-    [InlineData(2.0)]
-    public void DiscountOutsideZeroToOne_ShouldFailValidation(double discountRaw)
+    [InlineData(100.01)]
+    [InlineData(150)]
+    public void DiscountOutsideZeroToHundred_ShouldFailValidation(double discountRaw)
     {
         var discount = (decimal)discountRaw;
         var request = new CreateOrderRequest(
@@ -101,7 +101,7 @@ public sealed class CreateOrderValidatorTests
             CustomerId: 1,
             Details: new List<CreateOrderDetailRequest>
             {
-                new(ProductId: 1, OrderQuantities: 3, Discount: 0.1m),
+                new(ProductId: 1, OrderQuantities: 3, Discount: 10m),
                 new(ProductId: 2, OrderQuantities: 1, Discount: 0m)
             });
 
@@ -183,8 +183,8 @@ public sealed class UpdateOrderValidatorTests
         var request = new UpdateOrderRequest(
             Details: new List<UpdateOrderDetailRequest>
             {
-                new(ProductId: 1, OrderQuantities: 2, Discount: 0.05m, Version: 1),
-                new(ProductId: 2, OrderQuantities: 5, Discount: 0m,    Version: 2)
+                new(ProductId: 1, OrderQuantities: 2, Discount: 5m, Version: 1),
+                new(ProductId: 2, OrderQuantities: 5, Discount: 0m, Version: 2)
             });
 
         var result = _validator.TestValidate(request);

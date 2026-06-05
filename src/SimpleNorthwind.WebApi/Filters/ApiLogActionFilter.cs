@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -7,6 +8,8 @@ using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
 using Microsoft.IdentityModel.JsonWebTokens;
 using SimpleNorthwind.Application.Abstractions.Persistence;
+using SimpleNorthwind.Application.ApiLogs;
+using SimpleNorthwind.WebApi.Web.RealTime;
 
 namespace SimpleNorthwind.WebApi.Filters;
 
@@ -15,29 +18,76 @@ namespace SimpleNorthwind.WebApi.Filters;
 /// response_status / response_result / summary_date）。敏感欄位（password / token / secret /
 /// authorization）redact 為 ***。寫入失敗不影響主流程。
 /// </summary>
-public sealed class ApiLogActionFilter(IApiLogRepository apiLogs, ILogger<ApiLogActionFilter> logger) : IAsyncActionFilter
+public sealed class ApiLogActionFilter(
+    IApiLogRepository apiLogs,
+    IApiLogBroadcaster broadcaster,
+    ILogger<ApiLogActionFilter> logger) : IAsyncActionFilter
 {
     private static readonly string[] SensitiveKeys = ["password", "token", "secret", "authorization"];
 
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
+        // [SkipApiLog] 端點（如讀稽核 GET /api/apilogs）不稽核、連帶不觸發推播（UD8）。
+        if (context.ActionDescriptor.EndpointMetadata.OfType<SkipApiLogAttribute>().Any())
+        {
+            await next().ConfigureAwait(false);
+            return;
+        }
+
         // 先記下參數（行為發生於 action 執行前後皆可，這裡在執行後寫入以涵蓋驗證失敗的呼叫）
         var detail = BuildDetail(context);
         var actions = BuildActionName(context);
         var userId = ResolveUserId(context);
+        var userName = ResolveUserName(context);
+        var clientIp = context.HttpContext.Connection.RemoteIpAddress?.ToString();
 
+        var stopwatch = Stopwatch.StartNew();
         var executed = await next().ConfigureAwait(false);
+        stopwatch.Stop();
 
         var (status, resultBody) = ExtractResponse(executed);
+        // guid / durationMs / summaryDateUtc 同時用於持久化與推播 payload，確保兩者完全一致。
+        var guid = Guid.NewGuid();
+        var durationMs = (int)stopwatch.ElapsedMilliseconds;
+        var summaryDateUtc = DateTime.UtcNow;
 
+        var writeSucceeded = false;
         try
         {
-            await apiLogs.WriteAsync(Guid.NewGuid(), userId, actions, detail, status, resultBody,
-                DateTime.UtcNow, context.HttpContext.RequestAborted).ConfigureAwait(false);
+            await apiLogs.WriteAsync(guid, userId, actions, detail, status, resultBody,
+                clientIp, durationMs, summaryDateUtc,
+                context.HttpContext.RequestAborted).ConfigureAwait(false);
+            writeSucceeded = true;
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "寫入 api_logs 失敗（不影響主流程）。");
+        }
+
+        // 即時推播：寫入成功後「附帶」推送（payload 由 claims + 請求上下文組，免 DB lookup，
+        // UserName 取 JWT name claim）。推播失敗不得影響業務回應 → 獨立 try/catch；用
+        // CancellationToken.None 而非 RequestAborted，避免操作者中途斷線取消對其他檢視者的推播。
+        if (writeSucceeded)
+        {
+            try
+            {
+                var log = new ApiLogDto(
+                    Guid: guid,
+                    UserId: userId,
+                    UserName: userName,
+                    Actions: actions,
+                    ActionDetail: detail,
+                    ResponseStatus: status,
+                    ClientIp: clientIp,
+                    DurationMs: durationMs,
+                    ResponseResult: resultBody,
+                    SummaryDate: summaryDateUtc);
+                await broadcaster.PublishAsync(log, CancellationToken.None).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "即時推播稽核紀錄失敗（不影響主流程）。");
+            }
         }
     }
 
@@ -59,6 +109,14 @@ public sealed class ApiLogActionFilter(IApiLogRepository apiLogs, ILogger<ApiLog
         var sub = context.HttpContext.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
         return int.TryParse(sub, out var id) ? id : null;
     }
+
+    /// <summary>
+    /// 由 JWT <c>name</c> claim 取操作者姓名（<c>JwtTokenService</c> 寫入的「FirstName LastName」；
+    /// <c>MapInboundClaims=false</c> 故 claim type 維持原始 <c>"name"</c>）。匿名端點（如 login）無此 claim →
+    /// 回 null，前端顯示「系統 / 匿名」，與唯讀稽核列一致。免 JOIN employees。
+    /// </summary>
+    private static string? ResolveUserName(ActionExecutingContext context)
+        => context.HttpContext.User.FindFirst("name")?.Value;
 
     private static string BuildActionName(ActionExecutingContext context)
     {

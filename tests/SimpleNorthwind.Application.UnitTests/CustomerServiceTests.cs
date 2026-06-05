@@ -28,7 +28,8 @@ public sealed class CustomerServiceTests
         // Arrange
         const int newId = 42;
         const string actingUser = "test-user";
-        var request = new CreateCustomerRequest("Acme Corp", "0912-345-678", "Manager");
+        var request = new CreateCustomerRequest(
+            CompanyName: "Acme Corp", ContactName: "Jane Doe", ContactNumber: "0912-345-678", ContactTitle: "Manager", Email: "jane@acme.test");
 
         _repo.InsertAsync(Arg.Any<Customer>(), Arg.Any<CancellationToken>())
              .Returns(newId);
@@ -85,7 +86,8 @@ public sealed class CustomerServiceTests
     {
         // Arrange
         var customer = BuildCustomer(id: 5);
-        var request = new UpdateCustomerRequest("Updated Corp", "0900-000-000", "Director", false, null);
+        var request = new UpdateCustomerRequest(
+            CompanyName: "Updated Corp", ContactName: null, ContactNumber: "0900-000-000", ContactTitle: "Director", Email: null, IsOutContacted: false, OutContactedDate: null);
 
         _repo.GetByIdAsync(5, Arg.Any<CancellationToken>()).Returns(customer);
         _repo.UpdateAsync(Arg.Any<Customer>(), Arg.Any<CancellationToken>()).Returns(true);
@@ -106,8 +108,8 @@ public sealed class CustomerServiceTests
         var customer = BuildCustomer(id: 7);
         _repo.GetByIdAsync(7, Arg.Any<CancellationToken>()).Returns(customer);
         var request = new UpdateCustomerRequest(
-            customer.CompanyName, customer.ContactNumber, customer.ContactTitle,
-            customer.IsOutContacted, customer.OutContactedDate);
+            customer.CompanyName, customer.ContactName, customer.ContactNumber, customer.ContactTitle,
+            customer.Email, customer.IsOutContacted, customer.OutContactedDate);
 
         // Act
         var result = await _sut.UpdateAsync(7, request);
@@ -124,7 +126,7 @@ public sealed class CustomerServiceTests
     {
         // Arrange
         _repo.GetByIdAsync(99, Arg.Any<CancellationToken>()).Returns((Customer?)null);
-        var request = new UpdateCustomerRequest("X", null, null, false, null);
+        var request = new UpdateCustomerRequest("X", null, null, null, null, false, null);
 
         // Act
         var result = await _sut.UpdateAsync(99, request);

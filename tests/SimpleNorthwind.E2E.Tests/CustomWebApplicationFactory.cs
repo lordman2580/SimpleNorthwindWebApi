@@ -1,10 +1,14 @@
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using SimpleNorthwind.Migrator;
 using SimpleNorthwind.Migrator.Options;
+using SimpleNorthwind.WebApi.Web.Http;
 
 namespace SimpleNorthwind.E2E.Tests;
 
@@ -37,7 +41,18 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
             {
                 ["ConnectionStrings:SimpleNorthwind"] = ConnectionString,
                 ["Jwt:Secret"] = "e2e-only-test-signing-secret-please-change-0123456789",
+                // MVC UI 的 loopback typed client 需要 BaseUrl；TestServer 下實際 handler 於下方改接 in-memory。
+                ["Api:BaseUrl"] = "http://localhost",
             });
+        });
+
+        // UI loopback：NorthwindApiClient 改用 TestServer 的 in-memory handler，
+        // 讓 MVC 前端對自身 /api/* 的自呼叫在記憶體內完成（否則 BaseUrl 走真實網路無人接聽）。
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddHttpClient<NorthwindApiClient>()
+                .ConfigurePrimaryHttpMessageHandler(sp =>
+                    ((TestServer)sp.GetRequiredService<IServer>()).CreateHandler());
         });
     }
 

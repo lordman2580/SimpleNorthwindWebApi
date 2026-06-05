@@ -1,0 +1,33 @@
+@model CustomerFormViewModel
+@* 客戶 Create / Edit 共用欄位（公司名稱 + 聯絡人/職稱 + 電話/Email）。
+   兩頁同為 CustomerFormViewModel，故 asp-for 欄位名一致；Edit 專屬的外訪欄位留在 Edit.cshtml。
+   見 29-前端共用模組抽取稽核 #9。 *@
+<div class="mb-3">
+    <label asp-for="CompanyName" class="form-label">公司名稱 <span class="text-danger">*</span></label>
+    <input asp-for="CompanyName" class="form-control" />
+    <span asp-validation-for="CompanyName" class="text-danger small"></span>
+</div>
+<div class="row g-3">
+    <div class="col-md-6 mb-3">
+        <label asp-for="ContactName" class="form-label"></label>
+        <input asp-for="ContactName" class="form-control" />
+        <span asp-validation-for="ContactName" class="text-danger small"></span>
+    </div>
+    <div class="col-md-6 mb-3">
+        <label asp-for="ContactTitle" class="form-label"></label>
+        <input asp-for="ContactTitle" class="form-control" />
+        <span asp-validation-for="ContactTitle" class="text-danger small"></span>
+    </div>
+</div>
+<div class="row g-3">
+    <div class="col-md-6 mb-3">
+        <label asp-for="ContactNumber" class="form-label"></label>
+        <input asp-for="ContactNumber" class="form-control" />
+        <span asp-validation-for="ContactNumber" class="text-danger small"></span>
+    </div>
+    <div class="col-md-6 mb-3">
+        <label asp-for="Email" class="form-label"></label>
+        <input asp-for="Email" type="email" class="form-control" />
+        <span asp-validation-for="Email" class="text-danger small"></span>
+    </div>
+</div>

@@ -1,0 +1,83 @@
+@model CustomerIndexViewModel
+@{
+    ViewData["Title"] = "客戶";
+    var paged = Model.Page;
+
+    // 查詢字串 / 排序連結（編碼與箭頭策略走共用模組）。
+    string BuildQuery(string? sort = null, int? p = null, bool? desc = null) => QueryString.Build("/customers",
+        ("sortBy", sort ?? Model.SortBy),
+        ("desc", desc ?? Model.Desc),
+        ("page", p ?? paged.Page),
+        ("pageSize", paged.PageSize));
+
+    string SortHref(string field) => BuildQuery(sort: field, desc: SortHeaders.NextDesc(field, Model.SortBy, Model.Desc), p: 1);
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">客戶</h1>
+    <a href="/customers/create" class="btn btn-teal">新增客戶</a>
+</div>
+
+<div class="card shadow-sm border-0">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th><a href="@SortHref("company")" class="text-decoration-none text-dark">客戶@(SortHeaders.Arrow("company", Model.SortBy, Model.Desc))</a></th>
+                    <th>客戶代碼</th>
+                    <th><a href="@SortHref("contact")" class="text-decoration-none text-dark">聯絡人@(SortHeaders.Arrow("contact", Model.SortBy, Model.Desc))</a></th>
+                    <th>電話</th>
+                    <th class="text-end"><a href="@SortHref("orders")" class="text-decoration-none text-dark">訂單數@(SortHeaders.Arrow("orders", Model.SortBy, Model.Desc))</a></th>
+                    <th class="text-end">操作</th>
+                </tr>
+            </thead>
+            <tbody>
+                @if (paged.Items.Count == 0)
+                {
+                    <empty-row colspan="6" message="尚無客戶資料。" />
+                }
+                else
+                {
+                    @foreach (var c in paged.Items)
+                    {
+                        <tr>
+                            <td>
+                                <a href="/customers/@c.CustomerId" class="text-teal fw-semibold text-decoration-none">@c.CompanyName</a>
+                            </td>
+                            <td class="text-muted">@c.CustomerId</td>
+                            <td>
+                                @if (!string.IsNullOrWhiteSpace(c.ContactName))
+                                {
+                                    <div>@c.ContactName</div>
+                                    @if (!string.IsNullOrWhiteSpace(c.ContactTitle))
+                                    {
+                                        <small class="text-muted">@c.ContactTitle</small>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="text-muted">—</span>
+                                }
+                            </td>
+                            <td>@c.ContactNumber.DisplayOrDash()</td>
+                            <td class="text-end">@c.OrderCount</td>
+                            <td class="text-end">
+                                <a href="/customers/@c.CustomerId" class="btn btn-sm btn-outline-secondary">檢視</a>
+                                <a href="/customers/@c.CustomerId/edit" class="btn btn-sm btn-outline-secondary">編輯</a>
+                                <a href="/customers/@c.CustomerId/delete" class="btn btn-sm btn-outline-danger">刪除</a>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@if (paged.TotalCount > 0)
+{
+    <div class="d-flex justify-content-between align-items-center mt-3">
+        <small class="text-muted">顯示 @paged.FirstItemIndex–@paged.LastItemIndex，共 @paged.TotalCount 筆</small>
+        <partial name="~/Web/Views/Shared/_Pagination.cshtml" model="@(new PaginationModel { Page = paged.Page, TotalPages = paged.TotalPages, HasPrevious = paged.HasPrevious, HasNext = paged.HasNext, PageHref = p => BuildQuery(p: p) })" />
+    </div>
+}

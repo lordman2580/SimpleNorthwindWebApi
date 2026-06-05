@@ -1,5 +1,6 @@
 using Dapper;
 using SimpleNorthwind.Application.Abstractions.Persistence;
+using SimpleNorthwind.Application.Orders;
 using SimpleNorthwind.Domain.Entities;
 using SimpleNorthwind.Infrastructure.Persistence;
 using static SimpleNorthwind.Infrastructure.Persistence.SqlNaming;
@@ -74,4 +75,26 @@ internal sealed class OrderDetailRepository(IUnitOfWork uow) : IOrderDetailRepos
     public async Task DeleteAsync(int orderId, int productId, CancellationToken ct = default) =>
         await uow.Connection.ExecuteAsync(
             new CommandDefinition(DeleteSql, new { orderId, productId }, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
+
+    // enrich 讀：明細 JOIN products 取名稱 / 單價。
+    private static readonly string ListRowsByOrdersSql =
+        $"""
+        SELECT od.{Col(nameof(OrderDetail.OrderId))}, od.{Col(nameof(OrderDetail.ProductId))},
+               p.{Col(nameof(Product.ProductName))}, p.{Col(nameof(Product.UnitPrice))},
+               od.{Col(nameof(OrderDetail.OrderQuantities))}, od.{Col(nameof(OrderDetail.Discount))}, od.{Col(nameof(OrderDetail.Version))}
+        FROM dbo.order_details od
+        JOIN dbo.products p ON p.{Col(nameof(Product.ProductId))} = od.{Col(nameof(OrderDetail.ProductId))}
+        WHERE od.{Col(nameof(OrderDetail.OrderId))} IN @orderIds
+        ORDER BY od.{Col(nameof(OrderDetail.OrderId))}, od.{Col(nameof(OrderDetail.ProductId))};
+        """;
+
+    public async Task<IReadOnlyList<OrderDetailRow>> ListRowsByOrdersAsync(IReadOnlyCollection<int> orderIds, CancellationToken ct = default)
+    {
+        if (orderIds.Count == 0)
+            return [];
+
+        var rows = await uow.Connection.QueryAsync<OrderDetailRow>(
+            new CommandDefinition(ListRowsByOrdersSql, new { orderIds }, transaction: uow.Transaction, cancellationToken: ct)).ConfigureAwait(false);
+        return rows.ToList();
+    }
 }
