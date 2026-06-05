@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -11,6 +12,7 @@ using SimpleNorthwind.Infrastructure.Serialization;
 using SimpleNorthwind.Infrastructure.Time;
 using SimpleNorthwind.WebApi.Filters;
 using SimpleNorthwind.WebApi.Middleware;
+using SimpleNorthwind.WebApi.Web.Http;
 
 // 機密加密小工具：dotnet run --project src/SimpleNorthwind.WebApi -- encrypt "<plaintext>"
 if (args is ["encrypt", var plaintext, ..])
@@ -25,9 +27,10 @@ builder.Host.UseSerilog((context, loggerConfig) =>
     loggerConfig.ReadFrom.Configuration(context.Configuration));
 
 builder.Services
-    .AddControllers(options =>
+    .AddControllersWithViews(options =>
     {
-        // ApiLog 外層（記錄所有呼叫含驗證失敗）→ Validation 內層
+        // ApiLog 外層（記錄所有呼叫含驗證失敗）→ Validation 內層。
+        // UI controller 以 [SkipApiLog] 排除，僅稽核其 loopback /api/* 呼叫。
         options.Filters.Add<ApiLogActionFilter>();
         options.Filters.Add<ValidationActionFilter>();
     })
@@ -42,8 +45,17 @@ builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddProblemDetails();
 
 builder.Services
-    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer();
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)  // 預設 scheme = JWT（/api/* 行為不變：未驗證回 401 JSON）
+    .AddJwtBearer()
+    .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, options =>
+    {
+        // UI 專用 Cookie scheme：未驗證 / 無權限 → 302 導頁（非 401 JSON）。UI controller 顯式指定此 scheme。
+        options.LoginPath = "/account/login";
+        options.LogoutPath = "/account/logout";
+        options.AccessDeniedPath = "/account/denied";
+        options.ExpireTimeSpan = TimeSpan.FromMinutes(60);  // 對齊 JWT 有效期；SignIn 時另以 JWT exp 設 ExpiresUtc
+        options.SlidingExpiration = false;
+    });
 
 // 以解密後的 JwtOptions 設定 Bearer 驗證參數
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
@@ -65,6 +77,18 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
     });
 
 builder.Services.AddAuthorization();
+
+// MVC UI → loopback typed client 打自身 /api/*（單一事實 + 稽核重用，見 19-前端架構與整合 §4）。
+// 走 HttpClientFactory（禁 new HttpClient()）；DelegatingHandler 補 Bearer + 時區。
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<BearerTimeZoneHandler>();
+builder.Services.AddHttpClient<NorthwindApiClient>(client =>
+    {
+        var baseUrl = builder.Configuration["Api:BaseUrl"]
+            ?? throw new InvalidOperationException("缺少設定 Api:BaseUrl（loopback 自呼叫位址）。");
+        client.BaseAddress = new Uri(baseUrl);
+    })
+    .AddHttpMessageHandler<BearerTimeZoneHandler>();
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -111,6 +135,8 @@ catch (TimeZoneNotFoundException)
 
 app.UseSerilogRequestLogging();
 
+app.UseStaticFiles();  // wwwroot：tz.js、靜態資源（UI 用）
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -128,7 +154,11 @@ app.UseExceptionHandler(handler => handler.Run(async context =>
 app.UseMiddleware<ClientTimeZoneMiddleware>();
 app.UseAuthentication();
 app.UseAuthorization();
-app.MapControllers();
+
+app.MapControllers();  // API：attribute route（/api/*）
+app.MapControllerRoute(  // UI：MVC 慣例 route（UI controller 另以 attribute route 美化路徑）
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
 
 app.Run();
 
