@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SimpleNorthwind.WebApi.Filters;
+using SimpleNorthwind.WebApi.Web.Http;
 
 namespace SimpleNorthwind.WebApi.Web.Controllers;
 
@@ -39,4 +40,48 @@ public abstract class UiControllerBase : Controller
         await HttpContext.SignOutAsync(CookieScheme).ConfigureAwait(false);
         return LocalRedirect("/account/login?expired=1");
     }
+
+    /// <summary>
+    /// loopback 失敗的統一導向：先處理 401（→ 登入），否則將狀態碼對映之錯誤訊息寫入
+    /// <c>TempData["Error"]</c> 並 <see cref="ControllerBase.RedirectToAction(string)"/> 至指定 action。
+    /// 僅在 <c>!result.IsSuccess</c> 時呼叫（401 亦屬失敗，於此被攔下）。
+    /// 取代 F2 各 controller 重複的「401 檢查 + 狀態 switch + TempData + RedirectToAction」樣板
+    /// （見 29-前端共用模組抽取稽核 #2 / #8）。
+    /// </summary>
+    protected async Task<IActionResult> FailRedirectAsync<T>(
+        ApiResult<T> result,
+        string action,
+        object? routeValues = null,
+        string fallback = "操作失敗。",
+        string? notFound = null,
+        string? conflict = null,
+        string? badRequest = null)
+    {
+        if (await RedirectToLoginIfUnauthorizedAsync(result.StatusCode).ConfigureAwait(false) is { } login)
+            return login;
+
+        TempData["Error"] = ResolveErrorMessage(result, fallback, notFound, conflict, badRequest);
+        return routeValues is null
+            ? RedirectToAction(action)
+            : RedirectToAction(action, routeValues);
+    }
+
+    /// <summary>
+    /// 由失敗 <see cref="ApiResult{T}"/> 對映人類可讀錯誤訊息。語意刻意對齊 F2 既有行為：
+    /// NotFound → 固定友善訊息（忽略 API Detail，呈現可帶 id 的中文）；Conflict / BadRequest → 優先 API
+    /// <c>Detail</c>、缺漏才退回固定訊息；其餘 → <c>Detail ?? fallback</c>。供 View-on-failure 站點亦可重用。
+    /// </summary>
+    protected static string ResolveErrorMessage<T>(
+        ApiResult<T> result,
+        string fallback,
+        string? notFound = null,
+        string? conflict = null,
+        string? badRequest = null)
+        => result.StatusCode switch
+        {
+            HttpStatusCode.NotFound when notFound is not null => notFound,
+            HttpStatusCode.Conflict when conflict is not null => result.Detail ?? conflict,
+            HttpStatusCode.BadRequest when badRequest is not null => result.Detail ?? badRequest,
+            _ => result.Detail ?? fallback,
+        };
 }

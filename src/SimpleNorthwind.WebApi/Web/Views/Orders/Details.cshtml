@@ -2,23 +2,12 @@
 @{
     ViewData["Title"] = $"訂單 #{Model.OrderId}";
 
-    (string Text, string Css) StatusBadge(string status) => status switch
-    {
-        "Normal" => ("正常", "bg-success"),
-        "PaidOff" => ("已付清", "bg-primary"),
-        "Canceled" => ("已取消", "bg-secondary"),
-        _ => (status, "bg-secondary"),
-    };
-    var (badgeText, badgeCss) = StatusBadge(Model.Status);
 }
-
-@if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
-@if (TempData["Success"] is string ok) { <div class="alert alert-success">@ok</div> }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <div class="d-flex align-items-center gap-2">
         <h1 class="h3 mb-0">訂單 #@Model.OrderId</h1>
-        <span class="status-badge badge @badgeCss">@badgeText</span>
+        <status-badge status="@Model.Status" />
     </div>
     <div class="d-flex gap-2">
         <a href="/orders" class="btn btn-outline-secondary">返回清單</a>
@@ -44,9 +33,9 @@
                     <dt class="col-4 text-muted">客戶代碼</dt>
                     <dd class="col-8">@Model.CustomerId</dd>
                     <dt class="col-4 text-muted">聯絡人</dt>
-                    <dd class="col-8">@(string.IsNullOrWhiteSpace(Model.CustomerContactName) ? "—" : Model.CustomerContactName)</dd>
+                    <dd class="col-8">@Model.CustomerContactName.DisplayOrDash()</dd>
                     <dt class="col-4 text-muted">電話</dt>
-                    <dd class="col-8">@(string.IsNullOrWhiteSpace(Model.CustomerContactNumber) ? "—" : Model.CustomerContactNumber)</dd>
+                    <dd class="col-8">@Model.CustomerContactNumber.DisplayOrDash()</dd>
                 </dl>
             </div>
         </div>
@@ -57,11 +46,11 @@
                 <h2 class="h6 text-teal mb-3">訂單資訊</h2>
                 <dl class="row mb-0 small">
                     <dt class="col-4 text-muted">狀態</dt>
-                    <dd class="col-8"><span class="status-badge badge @badgeCss">@badgeText</span></dd>
+                    <dd class="col-8"><status-badge status="@Model.Status" /></dd>
                     <dt class="col-4 text-muted">建立員工</dt>
                     <dd class="col-8">@Model.EmployeeName</dd>
                     <dt class="col-4 text-muted">訂購日</dt>
-                    <dd class="col-8">@Model.OrderDate.ToString("yyyy-MM-dd HH:mm:ss")</dd>
+                    <dd class="col-8">@Model.OrderDate.ToString(DateFmt.DateTime)</dd>
                 </dl>
             </div>
         </div>
@@ -90,14 +79,18 @@
                             <td class="text-end">@line.UnitPrice.ToString("N2")</td>
                             <td class="text-end">@line.Quantity</td>
                             <td class="text-end">@line.Discount.ToString("0.##")%</td>
-                            <td class="text-end">@line.LineTotal.ToString("N2")</td>
+                            <td class="text-end">@line.Subtotal.ToString("N2")</td>
                         </tr>
                     }
                 </tbody>
                 <tfoot>
                     <tr>
-                        <td colspan="4" class="text-end text-muted">商品小計</td>
-                        <td class="text-end">@Model.GrandTotal.ToString("N2")</td>
+                        <td colspan="4" class="text-end text-muted">商品小計（原價）</td>
+                        <td class="text-end">@Model.GrandSubtotal.ToString("N2")</td>
+                    </tr>
+                    <tr>
+                        <td colspan="4" class="text-end text-muted">折扣</td>
+                        <td class="text-end">@(Model.DiscountTotal > 0 ? "-" : "")@Model.DiscountTotal.ToString("N2")</td>
                     </tr>
                     <tr class="fw-bold">
                         <td colspan="4" class="text-end">總計</td>
@@ -109,4 +102,4 @@
     </div>
 </div>
 
-<p class="text-muted small">由 @Model.EmployeeName 建立 · @Model.OrderDate.ToString("yyyy-MM-dd HH:mm:ss")</p>
+<p class="text-muted small">由 @Model.EmployeeName 建立 · @Model.OrderDate.ToString(DateFmt.DateTime)</p>

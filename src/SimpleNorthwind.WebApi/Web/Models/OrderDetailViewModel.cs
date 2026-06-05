@@ -21,7 +21,10 @@ public sealed class OrderLineViewModel
     /// <summary>樂觀並行版本 token（編輯時帶回）。</summary>
     public int Version { get; init; }
 
-    /// <summary>小計 = UnitPrice × Quantity × (1 - Discount/100)。</summary>
+    /// <summary>原價小計 = UnitPrice × Quantity（未折扣，畫面「小計」欄顯示此值）。</summary>
+    public decimal Subtotal { get; init; }
+
+    /// <summary>折扣後小計 = UnitPrice × Quantity × (1 - Discount/100)（供總計加總）。</summary>
     public decimal LineTotal { get; init; }
 }
 
@@ -61,6 +64,12 @@ public sealed class OrderDetailViewModel
     /// <summary>明細列。</summary>
     public IReadOnlyList<OrderLineViewModel> Lines { get; init; } = [];
 
-    /// <summary>總計 = 各明細小計加總（無運費）。</summary>
+    /// <summary>商品原價小計 = Σ 各明細原價（未折扣）。</summary>
+    public decimal GrandSubtotal { get; init; }
+
+    /// <summary>折扣總額 = GrandSubtotal − GrandTotal。</summary>
+    public decimal DiscountTotal { get; init; }
+
+    /// <summary>總計 = 各明細折扣後小計加總（折扣後價格，無運費）。</summary>
     public decimal GrandTotal { get; init; }
 }

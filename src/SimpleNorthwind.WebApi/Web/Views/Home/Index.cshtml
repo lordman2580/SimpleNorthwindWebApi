@@ -3,22 +3,6 @@
     ViewData["Title"] = "總覽";
 }
 
-@functions {
-    // 由 Status 字串推導中文徽章文字與底色（不渲染 True/False）。
-    private static (string Text, string Css) StatusBadge(string status) => status switch
-    {
-        "Normal" => ("正常", "bg-success"),
-        "PaidOff" => ("已付清", "bg-primary"),
-        "Canceled" => ("已取消", "bg-secondary"),
-        _ => (status, "bg-secondary"),
-    };
-}
-
-@if (TempData["Error"] is string err)
-{
-    <div class="alert alert-danger">@err</div>
-}
-
 <h1 class="h3 fw-bold mb-4">總覽</h1>
 
 <div class="row g-3 mb-4">
@@ -74,13 +58,12 @@
                             <tbody>
                                 @foreach (var o in Model.RecentOrders)
                                 {
-                                    var badge = StatusBadge(o.Status);
                                     <tr>
                                         <td><a href="/orders/@o.OrderId" class="text-teal text-decoration-none">訂單 #@o.OrderId</a></td>
                                         <td>@o.CustomerName</td>
                                         <td>@o.EmployeeName</td>
-                                        <td>@o.OrderDate.ToString("yyyy-MM-dd")</td>
-                                        <td><span class="status-badge badge @badge.Css">@badge.Text</span></td>
+                                        <td>@o.OrderDate.ToString(DateFmt.Date)</td>
+                                        <td><status-badge status="@o.Status" /></td>
                                         <td class="text-end">@o.Total.ToString("C0")</td>
                                     </tr>
                                 }

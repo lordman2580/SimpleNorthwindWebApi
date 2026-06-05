@@ -2,36 +2,18 @@
 @{
     ViewData["Title"] = "訂單";
 
-    // 狀態原字串 -> 中文徽章（不顯示 True/False，依 Status 推導）。
-    (string Text, string Css) StatusBadge(string status) => status switch
-    {
-        "Normal" => ("正常", "bg-success"),
-        "PaidOff" => ("已付清", "bg-primary"),
-        "Canceled" => ("已取消", "bg-secondary"),
-        _ => (status, "bg-secondary"),
-    };
-
     var paged = Model.Page;
 
-    // 組裝目前篩選的 query string（供分頁／頁籤／頁大小連結沿用）。
-    string BuildQuery(string? tab = null, int? p = null, int? size = null, string? sort = null, bool? desc = null)
-    {
-        var dict = new Dictionary<string, string?>
-        {
-            ["statusTab"] = tab ?? Model.StatusTab,
-            ["employeeName"] = Model.EmployeeName,
-            ["fromDate"] = Model.FromDate?.ToString("yyyy-MM-dd"),
-            ["toDate"] = Model.ToDate?.ToString("yyyy-MM-dd"),
-            ["sortBy"] = sort ?? Model.SortBy,
-            ["desc"] = (desc ?? Model.Desc).ToString().ToLowerInvariant(),
-            ["page"] = (p ?? paged.Page).ToString(),
-            ["pageSize"] = (size ?? paged.PageSize).ToString(),
-        };
-        var parts = dict
-            .Where(kv => !string.IsNullOrWhiteSpace(kv.Value))
-            .Select(kv => $"{kv.Key}={Uri.EscapeDataString(kv.Value!)}");
-        return "/orders?" + string.Join("&", parts);
-    }
+    // 組裝目前篩選的 query string（供分頁／頁籤／排序連結沿用，編碼走 QueryString.Build）。
+    string BuildQuery(string? tab = null, int? p = null, string? sort = null, bool? desc = null) => QueryString.Build("/orders",
+        ("statusTab", tab ?? Model.StatusTab),
+        ("employeeName", Model.EmployeeName),
+        ("fromDate", Model.FromDate?.ToString(DateFmt.Date)),
+        ("toDate", Model.ToDate?.ToString(DateFmt.Date)),
+        ("sortBy", sort ?? Model.SortBy),
+        ("desc", desc ?? Model.Desc),
+        ("page", p ?? paged.Page),
+        ("pageSize", paged.PageSize));
 
     var tabs = new[]
     {
@@ -41,16 +23,9 @@
         ("canceled", "已取消"),
     };
 
-    // 排序欄位連結：點同欄反轉方向，否則預設遞減。
-    string SortLink(string key)
-    {
-        var newDesc = Model.SortBy == key ? !Model.Desc : true;
-        return BuildQuery(sort: key, desc: newDesc, p: 1);
-    }
+    // 排序連結：點同欄反轉、他欄升冪（SortHeaders 統一策略）。
+    string SortHref(string field) => BuildQuery(sort: field, desc: SortHeaders.NextDesc(field, Model.SortBy, Model.Desc), p: 1);
 }
-
-@if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
-@if (TempData["Success"] is string ok) { <div class="alert alert-success">@ok</div> }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h3 mb-0">訂單</h1>
@@ -83,11 +58,11 @@
     </div>
     <div class="col-6 col-md-3">
         <label class="form-label small mb-1">訂購日（起）</label>
-        <input type="date" name="fromDate" class="form-control" value="@(Model.FromDate?.ToString("yyyy-MM-dd"))" />
+        <input type="date" name="fromDate" class="form-control" value="@(Model.FromDate?.ToString(DateFmt.Date))" />
     </div>
     <div class="col-6 col-md-3">
         <label class="form-label small mb-1">訂購日（迄）</label>
-        <input type="date" name="toDate" class="form-control" value="@(Model.ToDate?.ToString("yyyy-MM-dd"))" />
+        <input type="date" name="toDate" class="form-control" value="@(Model.ToDate?.ToString(DateFmt.Date))" />
     </div>
     <div class="col-12 col-md-2 d-flex gap-2">
         <button type="submit" class="btn btn-teal flex-grow-1">篩選</button>
@@ -101,30 +76,29 @@
             <thead>
                 <tr>
                     <th>訂單</th>
-                    <th><a class="text-decoration-none text-teal" href="@SortLink("customer")">客戶@SortArrow("customer")</a></th>
+                    <th><a class="text-decoration-none text-teal" href="@SortHref("customer")">客戶@(SortHeaders.Arrow("customer", Model.SortBy, Model.Desc))</a></th>
                     <th>員工</th>
-                    <th><a class="text-decoration-none text-teal" href="@SortLink("date")">訂購日@SortArrow("date")</a></th>
+                    <th><a class="text-decoration-none text-teal" href="@SortHref("date")">訂購日@(SortHeaders.Arrow("date", Model.SortBy, Model.Desc))</a></th>
                     <th>狀態</th>
                     <th class="text-end">筆數</th>
-                    <th class="text-end"><a class="text-decoration-none text-teal" href="@SortLink("total")">金額@SortArrow("total")</a></th>
+                    <th class="text-end"><a class="text-decoration-none text-teal" href="@SortHref("total")">金額@(SortHeaders.Arrow("total", Model.SortBy, Model.Desc))</a></th>
                 </tr>
             </thead>
             <tbody>
                 @if (paged.Items.Count == 0)
                 {
-                    <tr><td colspan="7" class="text-center text-muted py-4">沒有符合條件的訂單。</td></tr>
+                    <empty-row colspan="7" message="沒有符合條件的訂單。" />
                 }
                 else
                 {
                     @foreach (var o in paged.Items)
                     {
-                        var (badgeText, badgeCss) = StatusBadge(o.Status);
                         <tr>
                             <td><a class="text-decoration-none text-teal fw-semibold" href="/orders/@o.OrderId">訂單 #@o.OrderId</a></td>
                             <td>@o.CustomerName</td>
                             <td>@o.EmployeeName</td>
-                            <td>@o.OrderDate.ToString("yyyy-MM-dd")</td>
-                            <td><span class="status-badge badge @badgeCss">@badgeText</span></td>
+                            <td>@o.OrderDate.ToString(DateFmt.Date)</td>
+                            <td><status-badge status="@o.Status" /></td>
                             <td class="text-end">@o.ItemCount</td>
                             <td class="text-end">@o.Total.ToString("N2")</td>
                         </tr>
@@ -147,8 +121,8 @@
         <form method="get" action="/orders" class="d-flex align-items-center gap-1">
             <input type="hidden" name="statusTab" value="@Model.StatusTab" />
             <input type="hidden" name="employeeName" value="@Model.EmployeeName" />
-            <input type="hidden" name="fromDate" value="@(Model.FromDate?.ToString("yyyy-MM-dd"))" />
-            <input type="hidden" name="toDate" value="@(Model.ToDate?.ToString("yyyy-MM-dd"))" />
+            <input type="hidden" name="fromDate" value="@(Model.FromDate?.ToString(DateFmt.Date))" />
+            <input type="hidden" name="toDate" value="@(Model.ToDate?.ToString(DateFmt.Date))" />
             <input type="hidden" name="sortBy" value="@Model.SortBy" />
             <input type="hidden" name="desc" value="@Model.Desc.ToString().ToLowerInvariant()" />
             <label class="form-label small mb-0">每頁</label>
@@ -159,16 +133,6 @@
                 }
             </select>
         </form>
-        <nav>
-            <ul class="pagination pagination-sm mb-0">
-                <li class="page-item @(paged.HasPrevious ? null : "disabled")">
-                    <a class="page-link" href="@BuildQuery(p: paged.Page - 1)">上一頁</a>
-                </li>
-                <li class="page-item disabled"><span class="page-link">@paged.Page / @paged.TotalPages</span></li>
-                <li class="page-item @(paged.HasNext ? null : "disabled")">
-                    <a class="page-link" href="@BuildQuery(p: paged.Page + 1)">下一頁</a>
-                </li>
-            </ul>
-        </nav>
+        <partial name="~/Web/Views/Shared/_Pagination.cshtml" model="@(new PaginationModel { Page = paged.Page, TotalPages = paged.TotalPages, HasPrevious = paged.HasPrevious, HasNext = paged.HasNext, PageHref = p => BuildQuery(p: p) })" />
     </div>
 </div>

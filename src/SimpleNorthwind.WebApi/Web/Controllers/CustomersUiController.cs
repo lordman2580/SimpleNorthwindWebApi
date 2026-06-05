@@ -70,17 +70,8 @@ public sealed class CustomersUiController(NorthwindApiClient apiClient) : UiCont
     public async Task<IActionResult> Details(int id, CancellationToken ct)
     {
         var result = await apiClient.GetCustomerAsync(id, ct);
-        if (await RedirectToLoginIfUnauthorizedAsync(result.StatusCode) is { } redirect) return redirect;
         if (!result.IsSuccess)
-        {
-            if (result.StatusCode == HttpStatusCode.NotFound)
-            {
-                TempData["Error"] = "找不到指定的客戶。";
-                return RedirectToAction(nameof(Index));
-            }
-            TempData["Error"] = result.Detail ?? "載入客戶資料失敗。";
-            return RedirectToAction(nameof(Index));
-        }
+            return await FailRedirectAsync(result, nameof(Index), fallback: "載入客戶資料失敗。", notFound: "找不到指定的客戶。");
 
         var customer = result.Value!;
 
@@ -95,7 +86,7 @@ public sealed class CustomersUiController(NorthwindApiClient apiClient) : UiCont
                 OrderId = o.OrderId,
                 OrderDate = o.OrderDate,
                 Status = o.Status,
-                Total = SumOrderTotal(o)
+                Total = o.Total()
             })
             .OrderByDescending(o => o.OrderDate)
             .ToList();
@@ -152,12 +143,8 @@ public sealed class CustomersUiController(NorthwindApiClient apiClient) : UiCont
     public async Task<IActionResult> Edit(int id, CancellationToken ct)
     {
         var result = await apiClient.GetCustomerAsync(id, ct);
-        if (await RedirectToLoginIfUnauthorizedAsync(result.StatusCode) is { } redirect) return redirect;
         if (!result.IsSuccess)
-        {
-            TempData["Error"] = result.StatusCode == HttpStatusCode.NotFound ? "找不到指定的客戶。" : result.Detail ?? "載入客戶資料失敗。";
-            return RedirectToAction(nameof(Index));
-        }
+            return await FailRedirectAsync(result, nameof(Index), fallback: "載入客戶資料失敗。", notFound: "找不到指定的客戶。");
 
         var c = result.Value!;
         var form = new CustomerFormViewModel
@@ -209,12 +196,8 @@ public sealed class CustomersUiController(NorthwindApiClient apiClient) : UiCont
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
         var result = await apiClient.GetCustomerAsync(id, ct);
-        if (await RedirectToLoginIfUnauthorizedAsync(result.StatusCode) is { } redirect) return redirect;
         if (!result.IsSuccess)
-        {
-            TempData["Error"] = result.StatusCode == HttpStatusCode.NotFound ? "找不到指定的客戶。" : result.Detail ?? "載入客戶資料失敗。";
-            return RedirectToAction(nameof(Index));
-        }
+            return await FailRedirectAsync(result, nameof(Index), fallback: "載入客戶資料失敗。", notFound: "找不到指定的客戶。");
 
         var c = result.Value!;
         var vm = new CustomerFormViewModel
@@ -237,15 +220,8 @@ public sealed class CustomersUiController(NorthwindApiClient apiClient) : UiCont
     public async Task<IActionResult> DeleteConfirmed(int id, CancellationToken ct)
     {
         var result = await apiClient.DeleteCustomerAsync(id, ct);
-        if (await RedirectToLoginIfUnauthorizedAsync(result.StatusCode) is { } redirect) return redirect;
-
         if (!result.IsSuccess)
-        {
-            TempData["Error"] = result.StatusCode == HttpStatusCode.NotFound
-                ? "客戶已不存在。"
-                : result.Detail ?? "刪除客戶失敗。";
-            return RedirectToAction(nameof(Index));
-        }
+            return await FailRedirectAsync(result, nameof(Index), fallback: "刪除客戶失敗。", notFound: "客戶已不存在。");
 
         TempData["Success"] = "客戶已刪除。";
         return RedirectToAction(nameof(Index));
@@ -264,10 +240,6 @@ public sealed class CustomersUiController(NorthwindApiClient apiClient) : UiCont
             .GroupBy(o => o.CustomerId)
             .ToDictionary(g => g.Key, g => g.Count());
     }
-
-    /// <summary>單筆訂單金額：明細小計加總（小計 = 單價 × 數量 ×（1 − 折扣%/100））。</summary>
-    private static decimal SumOrderTotal(OrderDto order)
-        => order.Details.Sum(d => d.UnitPrice * d.OrderQuantities * (1m - (d.Discount / 100m)));
 
     /// <summary>正規化排序欄位（限 company / contact / orders；其餘回 company）。</summary>
     private static string NormalizeSort(string? sortBy)

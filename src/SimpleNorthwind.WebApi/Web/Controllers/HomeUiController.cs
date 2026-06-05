@@ -47,7 +47,7 @@ public sealed class HomeUiController(NorthwindApiClient apiClient) : UiControlle
                 EmployeeName = o.EmployeeName,
                 OrderDate = o.OrderDate,
                 Status = o.Status,
-                Total = o.Details.Sum(d => d.UnitPrice * d.OrderQuantities * (1 - d.Discount / 100m)),
+                Total = o.Total(),
             })
             .ToList();
 

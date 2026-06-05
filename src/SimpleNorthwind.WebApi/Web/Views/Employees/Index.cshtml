@@ -1,8 +1,6 @@
 @model IReadOnlyList<EmployeeViewModel>
 @{ ViewData["Title"] = "員工"; }
 
-@if (TempData["Error"] is string err) { <div class="alert alert-danger">@err</div> }
-
 <div class="d-flex align-items-center justify-content-between mb-3">
     <h1 class="h4 mb-0">員工名冊</h1>
     <span class="text-muted small">共 @Model.Count 位</span>
@@ -33,16 +31,16 @@ else
                         </div>
                         <dl class="row mb-0 small">
                             <dt class="col-4 text-muted fw-normal">職稱</dt>
-                            <dd class="col-8 mb-1">@(string.IsNullOrWhiteSpace(emp.Title) ? "—" : emp.Title)</dd>
+                            <dd class="col-8 mb-1">@emp.Title.DisplayOrDash()</dd>
 
                             <dt class="col-4 text-muted fw-normal">分機</dt>
-                            <dd class="col-8 mb-1">@(string.IsNullOrWhiteSpace(emp.PhoneExtNumber) ? "—" : emp.PhoneExtNumber)</dd>
+                            <dd class="col-8 mb-1">@emp.PhoneExtNumber.DisplayOrDash()</dd>
 
                             <dt class="col-4 text-muted fw-normal">電話</dt>
-                            <dd class="col-8 mb-1">@(string.IsNullOrWhiteSpace(emp.PhoneNumber) ? "—" : emp.PhoneNumber)</dd>
+                            <dd class="col-8 mb-1">@emp.PhoneNumber.DisplayOrDash()</dd>
 
                             <dt class="col-4 text-muted fw-normal">到職</dt>
-                            <dd class="col-8 mb-0">@(emp.HireDate.HasValue ? emp.HireDate.Value.ToString("yyyy-MM-dd") : "—")</dd>
+                            <dd class="col-8 mb-0">@emp.HireDate.DisplayOrDash(DateFmt.Date)</dd>
                         </dl>
                     </div>
                 </div>

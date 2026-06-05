@@ -15,10 +15,6 @@ namespace SimpleNorthwind.WebApi.Web.Controllers;
 [Route("orders")]
 public sealed class OrdersUiController(NorthwindApiClient apiClient) : UiControllerBase
 {
-    /// <summary>建立訂單明細小計：UnitPrice × Qty × (1 - Discount/100)。</summary>
-    private static decimal LineTotal(decimal unitPrice, int quantity, decimal discount)
-        => unitPrice * quantity * (1m - (discount / 100m));
-
     /// <summary>狀態原字串對映頁籤鍵（all 一律通過）。</summary>
     private static bool MatchesTab(string status, string tab) => tab switch
     {
@@ -70,7 +66,7 @@ public sealed class OrdersUiController(NorthwindApiClient apiClient) : UiControl
                 OrderDate = o.OrderDate,
                 Status = o.Status,
                 ItemCount = o.Details.Count,
-                Total = o.Details.Sum(d => LineTotal(d.UnitPrice, d.OrderQuantities, d.Discount)),
+                Total = o.Total(),
             })
             .ToList();
 
@@ -124,14 +120,8 @@ public sealed class OrdersUiController(NorthwindApiClient apiClient) : UiControl
     public async Task<IActionResult> Details(int id, CancellationToken ct)
     {
         var result = await apiClient.GetOrderAsync(id, ct);
-        if (await RedirectToLoginIfUnauthorizedAsync(result.StatusCode) is { } redirect) return redirect;
         if (!result.IsSuccess)
-        {
-            TempData["Error"] = result.StatusCode == System.Net.HttpStatusCode.NotFound
-                ? $"找不到訂單 #{id}。"
-                : result.Detail ?? "載入訂單失敗。";
-            return RedirectToAction(nameof(Index));
-        }
+            return await FailRedirectAsync(result, nameof(Index), fallback: "載入訂單失敗。", notFound: $"找不到訂單 #{id}。");
 
         var order = result.Value!;
 
@@ -155,10 +145,13 @@ public sealed class OrdersUiController(NorthwindApiClient apiClient) : UiControl
                 Quantity = d.OrderQuantities,
                 Discount = d.Discount,
                 Version = d.Version,
-                LineTotal = LineTotal(d.UnitPrice, d.OrderQuantities, d.Discount),
+                Subtotal = d.UnitPrice * d.OrderQuantities,
+                LineTotal = d.LineTotal(),
             })
             .ToList();
 
+        var grandSubtotal = lines.Sum(l => l.Subtotal);
+        var grandTotal = lines.Sum(l => l.LineTotal);
         var vm = new OrderDetailViewModel
         {
             OrderId = order.OrderId,
@@ -172,7 +165,9 @@ public sealed class OrdersUiController(NorthwindApiClient apiClient) : UiControl
             IsCanceled = order.IsCanceled,
             IsPaidoff = order.IsPaidoff,
             Lines = lines,
-            GrandTotal = lines.Sum(l => l.LineTotal),
+            GrandSubtotal = grandSubtotal,
+            DiscountTotal = grandSubtotal - grandTotal,
+            GrandTotal = grandTotal,
         };
         return View("~/Web/Views/Orders/Details.cshtml", vm);
     }
@@ -219,14 +214,8 @@ public sealed class OrdersUiController(NorthwindApiClient apiClient) : UiControl
     public async Task<IActionResult> Edit(int id, CancellationToken ct)
     {
         var result = await apiClient.GetOrderAsync(id, ct);
-        if (await RedirectToLoginIfUnauthorizedAsync(result.StatusCode) is { } redirect) return redirect;
         if (!result.IsSuccess)
-        {
-            TempData["Error"] = result.StatusCode == System.Net.HttpStatusCode.NotFound
-                ? $"找不到訂單 #{id}。"
-                : result.Detail ?? "載入訂單失敗。";
-            return RedirectToAction(nameof(Index));
-        }
+            return await FailRedirectAsync(result, nameof(Index), fallback: "載入訂單失敗。", notFound: $"找不到訂單 #{id}。");
 
         var order = result.Value!;
         if (order.IsCanceled)
@@ -248,7 +237,7 @@ public sealed class OrdersUiController(NorthwindApiClient apiClient) : UiControl
                     Quantity = d.OrderQuantities,
                     Discount = d.Discount,
                     Version = d.Version,
-                    LineTotal = LineTotal(d.UnitPrice, d.OrderQuantities, d.Discount),
+                    LineTotal = d.LineTotal(),
                 })
                 .ToList(),
         };
@@ -271,20 +260,9 @@ public sealed class OrdersUiController(NorthwindApiClient apiClient) : UiControl
             lines.Select(l => new UpdateOrderDetailRequest(l.ProductId, l.OrderQuantities, l.Discount, l.Version)).ToList());
 
         var result = await apiClient.UpdateOrderAsync(id, request, ct);
-        if (await RedirectToLoginIfUnauthorizedAsync(result.StatusCode) is { } redirect) return redirect;
         if (!result.IsSuccess)
-        {
-            if (result.StatusCode == System.Net.HttpStatusCode.Conflict)
-            {
-                TempData["Error"] = result.Detail ?? "資料已被他人變更，請重新載入。";
-                return RedirectToAction(nameof(Edit), new { id });
-            }
-
-            TempData["Error"] = result.StatusCode == System.Net.HttpStatusCode.BadRequest
-                ? result.Detail ?? "輸入資料有誤或庫存不足。"
-                : result.Detail ?? "更新訂單失敗。";
-            return RedirectToAction(nameof(Edit), new { id });
-        }
+            return await FailRedirectAsync(result, nameof(Edit), new { id }, "更新訂單失敗。",
+                conflict: "資料已被他人變更，請重新載入。", badRequest: "輸入資料有誤或庫存不足。");
 
         return RedirectToAction(nameof(Details), new { id });
     }
@@ -294,21 +272,11 @@ public sealed class OrdersUiController(NorthwindApiClient apiClient) : UiControl
     public async Task<IActionResult> Cancel(int id, CancellationToken ct)
     {
         var result = await apiClient.CancelOrderAsync(id, ct);
-        if (await RedirectToLoginIfUnauthorizedAsync(result.StatusCode) is { } redirect) return redirect;
         if (!result.IsSuccess)
-        {
-            TempData["Error"] = result.StatusCode switch
-            {
-                System.Net.HttpStatusCode.Conflict => result.Detail ?? "已付清訂單不可取消。",
-                System.Net.HttpStatusCode.NotFound => $"找不到訂單 #{id}。",
-                _ => result.Detail ?? "取消訂單失敗。",
-            };
-        }
-        else
-        {
-            TempData["Success"] = $"訂單 #{id} 已取消。";
-        }
+            return await FailRedirectAsync(result, nameof(Details), new { id }, "取消訂單失敗。",
+                notFound: $"找不到訂單 #{id}。", conflict: "已付清訂單不可取消。");
 
+        TempData["Success"] = $"訂單 #{id} 已取消。";
         return RedirectToAction(nameof(Details), new { id });
     }
 

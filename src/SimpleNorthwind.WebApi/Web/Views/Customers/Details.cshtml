@@ -1,23 +1,6 @@
 @model CustomerDetailViewModel
 @{
     ViewData["Title"] = "客戶詳情";
-
-    // 訂單狀態 → 中文徽章（由 Status 字串推導，不顯示布林 True/False）。
-    Func<string, (string Text, string Css)> statusBadge = s => s switch
-    {
-        "PaidOff" => ("已付清", "bg-primary"),
-        "Canceled" => ("已取消", "bg-secondary"),
-        _ => ("正常", "bg-success")
-    };
-}
-
-@if (TempData["Error"] is string err)
-{
-    <div class="alert alert-danger">@err</div>
-}
-@if (TempData["Success"] is string ok)
-{
-    <div class="alert alert-success">@ok</div>
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -45,13 +28,13 @@
                     <dd class="col-sm-8">@Model.CustomerId</dd>
 
                     <dt class="col-sm-4">聯絡人</dt>
-                    <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.ContactName) ? "—" : Model.ContactName)</dd>
+                    <dd class="col-sm-8">@Model.ContactName.DisplayOrDash()</dd>
 
                     <dt class="col-sm-4">職稱</dt>
-                    <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.ContactTitle) ? "—" : Model.ContactTitle)</dd>
+                    <dd class="col-sm-8">@Model.ContactTitle.DisplayOrDash()</dd>
 
                     <dt class="col-sm-4">電話</dt>
-                    <dd class="col-sm-8">@(string.IsNullOrWhiteSpace(Model.ContactNumber) ? "—" : Model.ContactNumber)</dd>
+                    <dd class="col-sm-8">@Model.ContactNumber.DisplayOrDash()</dd>
 
                     <dt class="col-sm-4">Email</dt>
                     <dd class="col-sm-8">
@@ -69,7 +52,7 @@
                     <dd class="col-sm-8">@Model.CreateUser</dd>
 
                     <dt class="col-sm-4">建立日期</dt>
-                    <dd class="col-sm-8">@Model.CreateDate.ToString("yyyy-MM-dd HH:mm:ss")</dd>
+                    <dd class="col-sm-8">@Model.CreateDate.ToString(DateFmt.DateTime)</dd>
 
                     <dt class="col-sm-4">外訪狀態</dt>
                     <dd class="col-sm-8">
@@ -84,7 +67,7 @@
                     </dd>
 
                     <dt class="col-sm-4">外訪日期</dt>
-                    <dd class="col-sm-8">@(Model.OutContactedDate is { } d ? d.ToString("yyyy-MM-dd") : "—")</dd>
+                    <dd class="col-sm-8">@Model.OutContactedDate.DisplayOrDash(DateFmt.Date)</dd>
                 </dl>
             </div>
         </div>
@@ -109,7 +92,7 @@
                     </div>
                     <div class="col-4">
                         <div class="kpi-card">
-                            <div class="kpi-value">@(Model.LastOrderDate is { } last ? last.ToString("yyyy-MM-dd") : "—")</div>
+                            <div class="kpi-value">@Model.LastOrderDate.DisplayOrDash(DateFmt.Date)</div>
                             <div class="kpi-label">最近訂單</div>
                         </div>
                     </div>
@@ -135,17 +118,16 @@
                 <tbody>
                     @if (Model.Orders.Count == 0)
                     {
-                        <tr><td colspan="4" class="text-center text-muted py-4">此客戶尚無訂單。</td></tr>
+                        <empty-row colspan="4" message="此客戶尚無訂單。" />
                     }
                     else
                     {
                         @foreach (var o in Model.Orders)
                         {
-                            var badge = statusBadge(o.Status);
                             <tr>
                                 <td><a href="/orders/@o.OrderId" class="text-teal text-decoration-none">訂單 #@o.OrderId</a></td>
-                                <td>@o.OrderDate.ToString("yyyy-MM-dd")</td>
-                                <td><span class="status-badge badge @badge.Css">@badge.Text</span></td>
+                                <td>@o.OrderDate.ToString(DateFmt.Date)</td>
+                                <td><status-badge status="@o.Status" /></td>
                                 <td class="text-end">@o.Total.ToString("C0")</td>
                             </tr>
                         }

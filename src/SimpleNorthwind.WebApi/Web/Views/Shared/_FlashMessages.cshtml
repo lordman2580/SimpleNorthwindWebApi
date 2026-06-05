@@ -1,0 +1,14 @@
+@{
+    // 全站 flash 訊息：由 _Layout 統一渲染（取代各 view 重複的 TempData if 區塊，
+    // 見 29-前端共用模組抽取稽核 #1）。controller 設 TempData["Error"]/["Success"] 即顯示。
+    var flashError = TempData["Error"] as string;
+    var flashSuccess = TempData["Success"] as string;
+}
+@if (!string.IsNullOrEmpty(flashError))
+{
+    <div class="alert alert-danger">@flashError</div>
+}
+@if (!string.IsNullOrEmpty(flashSuccess))
+{
+    <div class="alert alert-success">@flashSuccess</div>
+}
