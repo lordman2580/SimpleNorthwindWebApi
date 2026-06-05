@@ -109,6 +109,13 @@ body {
 
 .status-badge { font-size: .78rem; font-weight: 600; }
 
+/* ---- 即時稽核：新推播列短暫高亮 ---- */
+@keyframes sn-row-fade {
+    from { background-color: var(--sn-teal-light); }
+    to { background-color: transparent; }
+}
+.sn-row-new { animation: sn-row-fade 1.6s ease-out; }
+
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
     .sn-sidebar {

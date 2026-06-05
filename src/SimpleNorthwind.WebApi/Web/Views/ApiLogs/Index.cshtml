@@ -4,14 +4,15 @@
     var f = Model.Filter;
     var p = Model.Page;
 
-    // 分頁列保留目前過濾條件的 query string（不含 page）
-    var baseQuery = new List<string> { $"pageSize={p.PageSize}" };
-    if (f.UserId is not null) baseQuery.Add($"userId={f.UserId}");
-    if (!string.IsNullOrWhiteSpace(f.Method)) baseQuery.Add($"method={Uri.EscapeDataString(f.Method)}");
-    if (f.OnlyErrors) baseQuery.Add("onlyErrors=true");
-    if (f.From is not null) baseQuery.Add($"from={Uri.EscapeDataString(f.From.Value.ToString("yyyy-MM-ddTHH:mm"))}");
-    if (f.To is not null) baseQuery.Add($"to={Uri.EscapeDataString(f.To.Value.ToString("yyyy-MM-ddTHH:mm"))}");
-    var qs = string.Join('&', baseQuery);
+    // 分頁連結：保留目前過濾條件，覆寫 page（編碼走 QueryString.Build）。
+    string PageHref(int page) => QueryString.Build("/apilogs",
+        ("userId", f.UserId),
+        ("method", f.Method),
+        ("onlyErrors", f.OnlyErrors ? "true" : null),
+        ("from", f.From?.ToString("yyyy-MM-ddTHH:mm")),
+        ("to", f.To?.ToString("yyyy-MM-ddTHH:mm")),
+        ("pageSize", p.PageSize),
+        ("page", page));
 
     string MethodBadge(string method) => method?.ToUpperInvariant() switch
     {
@@ -28,11 +29,6 @@
         >= 400 => "bg-warning text-dark",
         _ => "bg-success"
     };
-}
-
-@if (TempData["Error"] is string err)
-{
-    <div class="alert alert-danger">@err</div>
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -83,90 +79,74 @@
     </div>
 </div>
 
-@if (p.TotalCount == 0)
-{
-    <div class="alert alert-light border text-muted text-center py-5">
-        查無符合條件的稽核紀錄。
-    </div>
-}
-else
-{
-    <div class="card border-0 shadow-sm">
-        <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+@* 表格永遠渲染（即使 0 筆）：tbody#logRows 供即時推播 prepend；空狀態置一筆 placeholder，JS 首次插入時移除。 *@
+<div class="card border-0 shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="text-nowrap">時間</th>
+                    <th>方法</th>
+                    <th>路徑</th>
+                    <th>狀態</th>
+                    <th>操作者</th>
+                    <th>IP</th>
+                    <th class="text-end">耗時</th>
+                    <th>結果</th>
+                </tr>
+            </thead>
+            <tbody id="logRows">
+                @if (p.TotalCount == 0)
+                {
+                    <tr id="logEmpty"><td colspan="8" class="text-center text-muted py-5">查無符合條件的稽核紀錄。</td></tr>
+                }
+                @foreach (var log in p.Items)
+                {
                     <tr>
-                        <th class="text-nowrap">時間</th>
-                        <th>方法</th>
-                        <th>路徑</th>
-                        <th>狀態</th>
-                        <th>操作者</th>
-                        <th>IP</th>
-                        <th class="text-end">耗時</th>
-                        <th>結果</th>
+                        <td class="text-nowrap small">@log.SummaryDate.ToString(DateFmt.DateTime)</td>
+                        <td><span class="badge @MethodBadge(log.Method)">@log.Method</span></td>
+                        <td class="small"><code>@log.Path</code></td>
+                        <td>
+                            @if (log.ResponseStatus is null)
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                            else
+                            {
+                                <span class="badge @StatusBadge(log.ResponseStatus)">@log.ResponseStatus</span>
+                            }
+                        </td>
+                        <td>@(log.UserName ?? "系統 / 匿名")</td>
+                        <td class="small text-muted">@log.ClientIp.DisplayOrDash()</td>
+                        <td class="text-end small">@(log.DurationMs is null ? "—" : $"{log.DurationMs} ms")</td>
+                        <td class="small">
+                            @if (string.IsNullOrEmpty(log.ResponseResultFull))
+                            {
+                                <span class="text-muted">—</span>
+                            }
+                            else
+                            {
+                                <div class="d-flex align-items-center gap-2">
+                                    <span class="text-truncate d-inline-block" style="max-width:260px;">@log.ResponseResultPreview</span>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary js-view-result flex-shrink-0"
+                                            data-result="@log.ResponseResultFull">檢視</button>
+                                </div>
+                            }
+                        </td>
                     </tr>
-                </thead>
-                <tbody>
-                    @foreach (var log in p.Items)
-                    {
-                        <tr>
-                            <td class="text-nowrap small">@log.SummaryDate.ToString("yyyy-MM-dd HH:mm:ss")</td>
-                            <td><span class="badge @MethodBadge(log.Method)">@log.Method</span></td>
-                            <td class="small"><code>@log.Path</code></td>
-                            <td>
-                                @if (log.ResponseStatus is null)
-                                {
-                                    <span class="text-muted">—</span>
-                                }
-                                else
-                                {
-                                    <span class="badge @StatusBadge(log.ResponseStatus)">@log.ResponseStatus</span>
-                                }
-                            </td>
-                            <td>@(log.UserName ?? "系統 / 匿名")</td>
-                            <td class="small text-muted">@(log.ClientIp ?? "—")</td>
-                            <td class="text-end small">@(log.DurationMs is null ? "—" : $"{log.DurationMs} ms")</td>
-                            <td class="small">
-                                @if (string.IsNullOrEmpty(log.ResponseResultFull))
-                                {
-                                    <span class="text-muted">—</span>
-                                }
-                                else
-                                {
-                                    <div class="d-flex align-items-center gap-2">
-                                        <span class="text-truncate d-inline-block" style="max-width:260px;">@log.ResponseResultPreview</span>
-                                        <button type="button" class="btn btn-sm btn-outline-secondary js-view-result flex-shrink-0"
-                                                data-result="@log.ResponseResultFull">檢視</button>
-                                    </div>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+                }
+            </tbody>
+        </table>
     </div>
+</div>
 
+@if (p.TotalCount > 0)
+{
     <div class="d-flex flex-wrap justify-content-between align-items-center mt-3">
         <div class="text-muted small">
             顯示第 @p.FirstItemIndex–@p.LastItemIndex 筆，共 @p.TotalCount 筆
         </div>
-        @if (p.TotalPages > 1)
-        {
-            <nav aria-label="稽核分頁">
-                <ul class="pagination pagination-sm mb-0">
-                    <li class="page-item @(p.HasPrevious ? "" : "disabled")">
-                        <a class="page-link" href="/apilogs?@qs&page=@(p.Page - 1)">上一頁</a>
-                    </li>
-                    <li class="page-item disabled">
-                        <span class="page-link">第 @p.Page / @p.TotalPages 頁</span>
-                    </li>
-                    <li class="page-item @(p.HasNext ? "" : "disabled")">
-                        <a class="page-link" href="/apilogs?@qs&page=@(p.Page + 1)">下一頁</a>
-                    </li>
-                </ul>
-            </nav>
-        }
+        <partial name="~/Web/Views/Shared/_Pagination.cshtml" model="@(new PaginationModel { Page = p.Page, TotalPages = p.TotalPages, HasPrevious = p.HasPrevious, HasNext = p.HasNext, PageHref = PageHref })" />
     </div>
 }
 
@@ -185,27 +165,17 @@ else
     </div>
 </div>
 
+@* 當前過濾條件供 apilog-live.js 判斷推播是否符合（不符不顯示，見 26-即時稽核推播 §7）。 *@
+<script type="application/json" id="logFilter">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new
+{
+    method = f.Method,
+    onlyErrors = f.OnlyErrors,
+    userId = f.UserId,
+    from = f.From?.ToString("yyyy-MM-ddTHH:mm"),
+    to = f.To?.ToString("yyyy-MM-ddTHH:mm")
+}))</script>
+
 @section Scripts {
-    <script>
-        (function () {
-            var modalEl = document.getElementById("resultModal");
-            var bodyEl = document.getElementById("resultModalBody");
-            var modal = new bootstrap.Modal(modalEl);
-
-            function pretty(text) {
-                try {
-                    return JSON.stringify(JSON.parse(text), null, 2);
-                } catch (e) {
-                    return text; // 非 JSON 原樣顯示
-                }
-            }
-
-            document.querySelectorAll(".js-view-result").forEach(function (btn) {
-                btn.addEventListener("click", function () {
-                    bodyEl.textContent = pretty(btn.getAttribute("data-result") || "");
-                    modal.show();
-                });
-            });
-        })();
-    </script>
+    <script src="~/lib/signalr/signalr.min.js"></script>
+    <script src="~/js/apilog-live.js" asp-append-version="true"></script>
 }

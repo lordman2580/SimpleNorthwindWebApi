@@ -16,6 +16,7 @@ using SimpleNorthwind.Infrastructure.Time;
 using SimpleNorthwind.WebApi.Filters;
 using SimpleNorthwind.WebApi.Middleware;
 using SimpleNorthwind.WebApi.Web.Http;
+using SimpleNorthwind.WebApi.Web.RealTime;
 
 // 機密加密小工具：dotnet run --project src/SimpleNorthwind.WebApi -- encrypt "<plaintext>"
 if (args is ["encrypt", var plaintext, ..])
@@ -51,6 +52,11 @@ builder.Services.Configure<WebEncoderOptions>(options =>
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 builder.Services.AddProblemDetails();
+
+// 即時稽核推播（SignalR）：Hub server→client 廣播；broadcaster 以介面隔離，filter 不直接碰 SignalR。
+// IHubContext 為 thread-safe → broadcaster 註冊為 singleton（見 26-即時稽核推播 §4）。
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IApiLogBroadcaster, SignalRApiLogBroadcaster>();
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)  // 預設 scheme = JWT（/api/* 行為不變：未驗證回 401 JSON）
@@ -167,6 +173,8 @@ app.MapControllers();  // API：attribute route（/api/*）
 app.MapControllerRoute(  // UI：MVC 慣例 route（UI controller 另以 attribute route 美化路徑）
     name: "default",
     pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.MapHub<ApiLogHub>("/hubs/apilogs");  // 稽核即時推播 Hub（Cookie 同源；未登入連線遭拒）
 
 app.Run();
 
