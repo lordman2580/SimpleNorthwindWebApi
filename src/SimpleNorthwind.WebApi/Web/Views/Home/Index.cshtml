@@ -1,0 +1,33 @@
+@{
+    ViewData["Title"] = "總覽";
+    var userName = User.Identity?.Name;
+    var sections = new[]
+    {
+        ("訂單", "/orders", "訂單列表、狀態與明細"),
+        ("客戶", "/customers", "客戶資料與聯絡資訊"),
+        ("產品", "/products", "產品、分類與庫存"),
+        ("員工", "/employees", "員工名冊（唯讀）"),
+        ("稽核", "/apilogs", "API 呼叫稽核紀錄"),
+    };
+}
+
+<div class="p-4 p-md-5 mb-4 rounded-3 text-white" style="background: linear-gradient(135deg,#0d9488,#0f766e);">
+    <h1 class="h3 fw-bold mb-1">歡迎回來，@userName</h1>
+    <p class="mb-0 text-white-50">Simple Northwind 員工後台。Dashboard 彙總數據將於 F2 接上。</p>
+</div>
+
+<div class="row g-3">
+    @foreach (var (name, url, desc) in sections)
+    {
+        <div class="col-12 col-sm-6 col-lg-4">
+            <a href="@url" class="text-decoration-none">
+                <div class="card h-100 shadow-sm border-0">
+                    <div class="card-body">
+                        <h2 class="h5 card-title mb-1" style="color:#0f766e;">@name</h2>
+                        <p class="card-text text-muted small mb-0">@desc</p>
+                    </div>
+                </div>
+            </a>
+        </div>
+    }
+</div>

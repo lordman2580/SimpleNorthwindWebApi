@@ -1,5 +1,8 @@
 using System.Text;
+using System.Text.Encodings.Web;
+using System.Text.Unicode;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.Extensions.WebEncoders;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -39,6 +42,11 @@ builder.Services
         options.JsonSerializerOptions.Converters.Add(new ClientLocalDateTimeJsonConverter());
         options.JsonSerializerOptions.Converters.Add(new NullableClientLocalDateTimeJsonConverter());
     });
+
+// Razor HtmlEncoder 預設只放行 BasicLatin，會把繁中編成 &#xXXXX; 實體（HTML 膨脹）。
+// 放行全 Unicode（仍編碼 < > & " 等危險字元，安全），讓繁中 view 輸出乾淨。僅影響 Razor，不影響 API JSON。
+builder.Services.Configure<WebEncoderOptions>(options =>
+    options.TextEncoderSettings = new TextEncoderSettings(UnicodeRanges.All));
 
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
