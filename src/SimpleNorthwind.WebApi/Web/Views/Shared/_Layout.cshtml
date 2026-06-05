@@ -1,0 +1,62 @@
+@{
+    var isAuthenticated = User.Identity?.IsAuthenticated == true;
+    var userName = User.Identity?.Name;
+    var title = User.FindFirst("title")?.Value;
+}
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] · Simple Northwind</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <style>
+        :root { --sn-teal: #0d9488; --sn-teal-dark: #0f766e; }
+        body { background-color: #f8fafc; }
+        .navbar-sn { background-color: var(--sn-teal); }
+        .navbar-sn .navbar-brand, .navbar-sn .nav-link { color: #ecfeff; }
+        .navbar-sn .nav-link:hover, .navbar-sn .nav-link.active { color: #ffffff; font-weight: 600; }
+        .btn-teal { background-color: var(--sn-teal); border-color: var(--sn-teal); color: #fff; }
+        .btn-teal:hover { background-color: var(--sn-teal-dark); border-color: var(--sn-teal-dark); color: #fff; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-sn shadow-sm">
+        <div class="container">
+            <a class="navbar-brand fw-bold" asp-controller="HomeUi" asp-action="Index">Simple Northwind</a>
+            @if (isAuthenticated)
+            {
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav"
+                        aria-controls="mainNav" aria-expanded="false" aria-label="切換導覽">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="mainNav">
+                    <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                        <li class="nav-item"><a class="nav-link" href="/orders">訂單</a></li>
+                        <li class="nav-item"><a class="nav-link" href="/customers">客戶</a></li>
+                        <li class="nav-item"><a class="nav-link" href="/products">產品</a></li>
+                        <li class="nav-item"><a class="nav-link" href="/employees">員工</a></li>
+                        <li class="nav-item"><a class="nav-link" href="/apilogs">稽核</a></li>
+                    </ul>
+                    <div class="d-flex align-items-center gap-3">
+                        <span class="text-white-50 small">
+                            @userName@(string.IsNullOrEmpty(title) ? "" : $"（{title}）")
+                        </span>
+                        <form asp-controller="AccountUi" asp-action="Logout" method="post" class="m-0">
+                            <button type="submit" class="btn btn-light btn-sm">登出</button>
+                        </form>
+                    </div>
+                </div>
+            }
+        </div>
+    </nav>
+
+    <main class="container py-4">
+        @RenderBody()
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/tz.js" asp-append-version="true"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>
