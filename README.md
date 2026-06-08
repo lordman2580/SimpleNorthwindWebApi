@@ -1,12 +1,14 @@
 ---
 作者: Yell Huang
-日期: 2026/06/03 11:29:45
-版本: 1.31
+日期: 2026/06/08 15:00:00
+版本: 1.40
 ---
 
 # Simple Northwind WebApi
 
-.NET 8 + SQL Server 的後端 API（無前端）。員工密碼登入（JWT）、訂單 + 訂單明細 CRUD、客戶 CRUD、全 API 稽核記錄。建立訂單時扣減庫存、取消時還原；超賣會被拒絕；已付清訂單不可取消。
+.NET 8 + SQL Server 的後端 API，並附 **ASP.NET Core MVC 員工後台前端**（總覽 Dashboard、訂單 / 客戶 / 產品 / 員工 / API 稽核管理，含 SignalR 即時稽核推播）。員工密碼登入（JWT / Cookie）、訂單 + 訂單明細 CRUD、客戶 CRUD、全 API 稽核記錄。建立訂單時扣減庫存、取消時還原；超賣會被拒絕；已付清訂單不可取消。
+
+訂單狀態：**未結清（Normal，黃）/ 已結清（PaidOff，綠）/ 已取消（Canceled，紅）**；Dashboard 最新訂單不顯示已取消，營收分「實際營收（已結清）」與「預計營收（未結清）」。
 
 設計原則：**keep clean and simple** —— 無 MediatR、無事件驅動、不過度設計。
 
@@ -15,6 +17,7 @@
 | 類別 | 採用 |
 |---|---|
 | Framework | .NET 8（`global.json` 釘 SDK 8） |
+| 前端 | ASP.NET Core MVC + Razor（員工後台，Cookie 驗證）；自訂 TagHelper（狀態徽章等）；SignalR（即時稽核推播） |
 | 資料存取 | Dapper（手寫 SQL，無 EF Core） |
 | 資料庫 | SQL Server / 本機 LocalDB |
 | 驗證 | JWT Bearer（PBKDF2 密碼雜湊） |
@@ -171,6 +174,19 @@ $env:APP_SECRET_KEY = "<上一步產生的 base64 金鑰>"
 
 > 日期欄位：DB 存 **UTC**，輸出依呼叫端時區（`X-Time-Zone` header，缺漏退回 `App:DefaultTimeZone` = `Asia/Taipei`），格式 `yyyy-MM-dd HH:mm:ss`。
 
+## 前端（MVC 員工後台）
+
+與 API 同一個 `SimpleNorthwind.WebApi` 程序，UI 採 **Cookie 驗證**（未登入導向 `/account/login`），透過 loopback typed client（`NorthwindApiClient`，`Api:BaseUrl`）呼叫自身 `/api/*`。Razor View 置於非預設的 `Web/Views/`（partial 需用 `~/Web/Views/...` 完整路徑）。
+
+| 路徑 | 畫面 |
+|---|---|
+| `/` | 總覽 Dashboard：KPI（訂單數 / 客戶數 / 未結訂單 / 實際 + 預計營收）、最新訂單（排除已取消）、庫存預警、今日稽核；經 SignalR 即時更新 |
+| `/orders` | 訂單列表（狀態頁籤：全部 / 未結清 / 已結清 / 已取消、員工 / 日期篩選、排序、分頁）與明細 |
+| `/customers` `/products` `/employees` | 客戶 / 產品 / 員工管理 |
+| `/apilogs` | API 稽核記錄（即時推播、時區篩選） |
+
+> 訂單狀態徽章由 `StatusBadgeTagHelper` 統一對映英文鍵 → 中文文字 + 顏色（單一事實）。
+
 ## 專案結構
 
 ```
@@ -178,7 +194,9 @@ src/
   SimpleNorthwind.Domain          # 實體、Result<T>、領域錯誤（零依賴）
   SimpleNorthwind.Application     # DTO、介面、Service、FluentValidation
   SimpleNorthwind.Infrastructure  # Dapper repos、UnitOfWork、JWT、密碼、AES、時區、DI
-  SimpleNorthwind.WebApi          # Controllers、Program.cs、Filters、Middleware、appsettings
+  SimpleNorthwind.WebApi          # API Controllers、Program.cs、Filters、Middleware、appsettings
+                                  #   Web/  → MVC 員工後台（Controllers / Views / TagHelpers / Extensions / Helpers / Models）
+                                  #   wwwroot/ → css / js（dashboard-live、apilog-live 等 SignalR 前端）
   SimpleNorthwind.Migrator        # 獨立 console：內嵌 .sql migration + 種子
 tests/
   *.UnitTests / *.Architecture.Tests / *.E2E.Tests
