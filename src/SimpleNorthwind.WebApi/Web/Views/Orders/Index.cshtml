@@ -18,8 +18,8 @@
     var tabs = new[]
     {
         ("all", "全部"),
-        ("normal", "正常"),
-        ("paidoff", "已付清"),
+        ("normal", "未結清"),
+        ("paidoff", "已結清"),
         ("canceled", "已取消"),
     };
 
@@ -27,9 +27,14 @@
     string SortHref(string field) => BuildQuery(sort: field, desc: SortHeaders.NextDesc(field, Model.SortBy, Model.Desc), p: 1);
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 mb-0">訂單</h1>
-    <a href="/orders/create" class="btn btn-teal">新增訂單</a>
+<div class="page-head">
+    <div class="ph-title">
+        <h2>訂單</h2>
+        <p>管理訂單與明細，可依員工、日期與狀態篩選。</p>
+    </div>
+    <div class="ph-actions">
+        <a href="/orders/create" class="btn btn-primary">新增訂單</a>
+    </div>
 </div>
 
 <ul class="nav nav-tabs mb-3">

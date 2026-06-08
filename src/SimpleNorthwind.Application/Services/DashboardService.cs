@@ -2,6 +2,7 @@ using SimpleNorthwind.Application.Abstractions.Persistence;
 using SimpleNorthwind.Application.Abstractions.Services;
 using SimpleNorthwind.Application.ApiLogs;
 using SimpleNorthwind.Application.Dashboard;
+using SimpleNorthwind.Application.Orders;
 
 namespace SimpleNorthwind.Application.Services;
 
@@ -31,12 +32,17 @@ public sealed class DashboardService(
         var auditTotal = (await apiLogs.QueryAsync(new ApiLogQuery(null, null, false, todayStart, todayEnd, 1, 1), ct).ConfigureAwait(false)).TotalCount;
         var auditErrors = (await apiLogs.QueryAsync(new ApiLogQuery(null, null, true, todayStart, todayEnd, 1, 1), ct).ConfigureAwait(false)).TotalCount;
 
-        var revenue = allOrders.Sum(o => o.Details.Sum(d => d.UnitPrice * d.OrderQuantities * (1 - d.Discount / 100m)));
+        // 單筆訂單折扣後合計（折扣為百分比 0..100）。已取消訂單不計入任何營收。
+        static decimal OrderTotal(OrderDto o) =>
+            o.Details.Sum(d => d.UnitPrice * d.OrderQuantities * (1 - d.Discount / 100m));
+
+        var settledRevenue = allOrders.Where(o => !o.IsCanceled && o.IsPaidoff).Sum(OrderTotal);   // 實際營收（已結清）
+        var expectedRevenue = allOrders.Where(o => !o.IsCanceled && !o.IsPaidoff).Sum(OrderTotal);  // 預計營收（未結清）
         var openCount = allOrders.Count(o => !o.IsCanceled && !o.IsPaidoff);
-        var recent = allOrders.OrderByDescending(o => o.OrderId).Take(RecentTake).ToList();
+        var recent = allOrders.Where(o => !o.IsCanceled).OrderByDescending(o => o.OrderId).Take(RecentTake).ToList();
 
         return new DashboardSummaryDto(
-            allOrders.Count, allCustomers.Count, openCount, revenue,
+            allOrders.Count, allCustomers.Count, openCount, settledRevenue, expectedRevenue,
             recent, lowStock, auditTotal, auditErrors);
     }
 }

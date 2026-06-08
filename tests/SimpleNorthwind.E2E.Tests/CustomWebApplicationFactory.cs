@@ -103,6 +103,29 @@ public sealed class CustomWebApplicationFactory : WebApplicationFactory<Program>
         await cmd.ExecuteNonQueryAsync().ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// 直接植入一筆 api_logs（測時區區間過濾用）。<paramref name="summaryDateUtc"/> 以 UTC 存（與真實寫入一致）；
+    /// user_id 預設 1（種子員工 Nancy，使 UserName 可解析且滿足 FK）。
+    /// </summary>
+    public async Task InsertApiLogAsync(string actionDetail, DateTime summaryDateUtc, int userId = 1)
+    {
+        await using var conn = new SqlConnection(ConnectionString);
+        await conn.OpenAsync().ConfigureAwait(false);
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO dbo.api_logs
+                (guid, user_id, actions, action_detail, response_status, response_result, client_ip, duration_ms, summary_date)
+            VALUES
+                (@guid, @userId, @actions, @actionDetail, 200, NULL, '::1', 1, @summaryDate);
+            """;
+        cmd.Parameters.Add(new SqlParameter("@guid", Guid.NewGuid()));
+        cmd.Parameters.Add(new SqlParameter("@userId", userId));
+        cmd.Parameters.Add(new SqlParameter("@actions", "Probe.Get"));
+        cmd.Parameters.Add(new SqlParameter("@actionDetail", actionDetail));
+        cmd.Parameters.Add(new SqlParameter("@summaryDate", summaryDateUtc));
+        await cmd.ExecuteNonQueryAsync().ConfigureAwait(false);
+    }
+
     public async Task<ApiLogRow?> GetLatestApiLogAsync(string actions)
     {
         await using var conn = new SqlConnection(ConnectionString);

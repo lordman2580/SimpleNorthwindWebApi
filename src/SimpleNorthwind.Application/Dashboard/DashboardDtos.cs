@@ -11,7 +11,8 @@ public sealed record DashboardSummaryDto(
     int OrderCount,
     int CustomerCount,
     int OpenOrderCount,
-    decimal Revenue,
+    decimal SettledRevenue,   // 實際營收：已結清（IsPaidoff）訂單合計
+    decimal ExpectedRevenue,  // 預計營收：未結清（Normal，未付清且未取消）訂單合計
     IReadOnlyList<OrderDto> RecentOrders,
     IReadOnlyList<ProductDto> LowStock,
     int AuditTotalToday,

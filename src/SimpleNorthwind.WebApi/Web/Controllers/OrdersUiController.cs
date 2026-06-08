@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using SimpleNorthwind.Application.Customers;
 using SimpleNorthwind.Application.Orders;
 using SimpleNorthwind.Application.Products;
+using SimpleNorthwind.WebApi.Web.Extensions;
 using SimpleNorthwind.WebApi.Web.Http;
 using SimpleNorthwind.WebApi.Web.Models;
 

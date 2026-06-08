@@ -15,8 +15,11 @@ public sealed class DashboardViewModel
     /// <summary>未結（進行中）訂單數。</summary>
     public int OpenOrderCount { get; init; }
 
-    /// <summary>本期營收（已折扣後）。</summary>
-    public decimal Revenue { get; init; }
+    /// <summary>實際營收（已結清訂單合計，已折扣後）。</summary>
+    public decimal SettledRevenue { get; init; }
+
+    /// <summary>預計營收（未結清訂單合計，已折扣後）。</summary>
+    public decimal ExpectedRevenue { get; init; }
 
     /// <summary>最新訂單列表。</summary>
     public IReadOnlyList<DashboardOrderRow> RecentOrders { get; init; } = [];

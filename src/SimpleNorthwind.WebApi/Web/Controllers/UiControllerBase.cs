@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using SimpleNorthwind.Infrastructure.Time;
 using SimpleNorthwind.WebApi.Filters;
 using SimpleNorthwind.WebApi.Web.Http;
 
@@ -26,6 +27,42 @@ namespace SimpleNorthwind.WebApi.Web.Controllers;
 public abstract class UiControllerBase : Controller
 {
     protected const string CookieScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+
+    private const string TimeZoneCookie = "tz";
+
+    /// <summary>
+    /// 將使用者本地時間（datetime-local query 參數，<c>Kind=Unspecified</c>）轉為 UTC 牆鐘值並去除 Kind。
+    /// <para>
+    /// 用於 loopback API 的日期區間參數（如稽核 from/to）：DB <c>summary_date</c> 存 UTC，
+    /// SQL 直接比對 <c>@fromUtc</c>/<c>@toUtc</c>，故 UI 端須先把瀏覽器本地時間轉成 UTC。
+    /// 回傳 <c>Kind=Unspecified</c>（不帶 Z）以免 <c>NorthwindApiClient</c> 的 <c>"o"</c> 序列化帶 Z 後，
+    /// 被 API 端 query-string <see cref="DateTime"/> 綁定再做一次伺服器時區位移。
+    /// 時區取自瀏覽器 <c>tz</c> cookie（IANA id），缺漏 / 無法解析退回
+    /// <see cref="ClientTimeZoneAccessor.Default"/>（App:DefaultTimeZone）。
+    /// </para>
+    /// </summary>
+    protected DateTime? ToClientUtc(DateTime? clientLocal)
+    {
+        if (clientLocal is not { } local)
+            return null;
+
+        var utc = TimeZoneInfo.ConvertTimeToUtc(
+            DateTime.SpecifyKind(local, DateTimeKind.Unspecified), ResolveClientTimeZone());
+        return DateTime.SpecifyKind(utc, DateTimeKind.Unspecified);
+    }
+
+    /// <summary>由 <c>tz</c> cookie 解析瀏覽器時區（與 <c>BearerTimeZoneHandler</c> 同源），缺漏退回預設時區。</summary>
+    private TimeZoneInfo ResolveClientTimeZone()
+    {
+        var id = Request.Cookies[TimeZoneCookie];
+        if (!string.IsNullOrWhiteSpace(id))
+        {
+            try { return TimeZoneInfo.FindSystemTimeZoneById(id); }
+            catch (TimeZoneNotFoundException) { }
+            catch (InvalidTimeZoneException) { }
+        }
+        return ClientTimeZoneAccessor.Default;
+    }
 
     /// <summary>
     /// loopback 回應若為 401（JWT 過期 / 失效）→ 清 Cookie 並導回登入頁。

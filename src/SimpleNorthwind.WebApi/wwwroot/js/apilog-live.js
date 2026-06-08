@@ -105,6 +105,8 @@
         if (empty) empty.remove();
         rowsEl.insertBefore(buildRow(dto), rowsEl.firstChild);
         while (rowsEl.children.length > MAX_ROWS) rowsEl.removeChild(rowsEl.lastChild);
+        // 通知計數器（apilog-scroll.js）：有新列推入 → 更新「已顯示 X / N 筆」。
+        document.dispatchEvent(new CustomEvent("apilog:prepended"));
     }
 
     // ---- 結果檢視彈窗：事件委派（涵蓋歷史列與動態新列）----

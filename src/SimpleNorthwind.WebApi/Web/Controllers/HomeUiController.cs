@@ -1,5 +1,7 @@
+using System.Net;
 using Microsoft.AspNetCore.Mvc;
 using SimpleNorthwind.Application.Dashboard;
+using SimpleNorthwind.WebApi.Web.Extensions;
 using SimpleNorthwind.WebApi.Web.Http;
 using SimpleNorthwind.WebApi.Web.Models;
 
@@ -30,6 +32,22 @@ public sealed class HomeUiController(NorthwindApiClient apiClient) : UiControlle
 
         var vm = MapToViewModel(result.Value);
         return View("~/Web/Views/Home/Index.cshtml", vm);
+    }
+
+    /// <summary>
+    /// 即時刷新用：回傳 dashboard 資料區塊 partial（供 <c>dashboard-live.js</c> 收到稽核事件後重抓換新）。
+    /// 未授權回 401（前端自行導向登入，不走 302 以免把登入頁塞進區塊）；失敗回 500（前端保留現況不換）。
+    /// </summary>
+    [HttpGet("/dashboard/body")]
+    public async Task<IActionResult> Body(CancellationToken ct)
+    {
+        var result = await apiClient.GetDashboardSummaryAsync(ct);
+        if (result.StatusCode == HttpStatusCode.Unauthorized)
+            return Unauthorized();
+        if (!result.IsSuccess || result.Value is null)
+            return StatusCode(StatusCodes.Status500InternalServerError);
+
+        return PartialView("~/Web/Views/Home/_DashboardBody.cshtml", MapToViewModel(result.Value));
     }
 
     /// <summary>
@@ -66,7 +84,8 @@ public sealed class HomeUiController(NorthwindApiClient apiClient) : UiControlle
             OrderCount = summary.OrderCount,
             CustomerCount = summary.CustomerCount,
             OpenOrderCount = summary.OpenOrderCount,
-            Revenue = summary.Revenue,
+            SettledRevenue = summary.SettledRevenue,
+            ExpectedRevenue = summary.ExpectedRevenue,
             RecentOrders = recentOrders,
             LowStock = lowStock,
             AuditTotalToday = summary.AuditTotalToday,

@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Html;
 
-namespace SimpleNorthwind.WebApi.Web;
+namespace SimpleNorthwind.WebApi.Web.Helpers;
 
 /// <summary>
 /// 列表排序表頭的共用邏輯（單一事實）：統一箭頭符號（▲ 升 / ▼ 降）與「點他欄一律升冪」策略，

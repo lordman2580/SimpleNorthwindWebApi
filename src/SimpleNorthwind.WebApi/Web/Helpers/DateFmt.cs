@@ -1,4 +1,4 @@
-namespace SimpleNorthwind.WebApi.Web;
+namespace SimpleNorthwind.WebApi.Web.Helpers;
 
 /// <summary>
 /// 顯示用日期格式常數（單一事實），取代散落各 view 的字面字串

@@ -21,6 +21,9 @@ public sealed class StatusBadgeTagHelper : TagHelper
     {
         var (text, css) = Resolve(Status);
         output.TagName = "span";
+        // 來源以自閉合語法 <status-badge ... /> 使用（TagStructure.WithoutEndTag），預設會渲染成自閉合
+        // <span ... />，導致 SetContent 的文字被丟棄（狀態欄全空）。強制成對標籤才會輸出 <span>文字</span>。
+        output.TagMode = TagMode.StartTagAndEndTag;
         output.Attributes.SetAttribute("class", $"status-badge badge {css}");
         output.Content.SetContent(text);
     }
@@ -28,9 +31,9 @@ public sealed class StatusBadgeTagHelper : TagHelper
     /// <summary>狀態 → (中文, badge css)。可單元測試。</summary>
     public static (string Text, string Css) Resolve(string? status) => status switch
     {
-        "Normal" => ("正常", "bg-success"),
-        "PaidOff" => ("已付清", "bg-primary"),
-        "Canceled" => ("已取消", "bg-secondary"),
+        "Normal" => ("未結清", "bg-warning"),
+        "PaidOff" => ("已結清", "bg-success"),
+        "Canceled" => ("已取消", "bg-danger"),
         _ => (status ?? string.Empty, "bg-secondary"),
     };
 }

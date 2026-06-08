@@ -17,9 +17,14 @@
     string SortHref(string field) => BuildQuery(category, field, SortHeaders.NextDesc(field, Model.SortBy, Model.Desc), 1);
 }
 
-<div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
-    <h1 class="h3 fw-bold mb-0" style="color:#0f766e;">產品</h1>
-    <span class="text-muted small">共 @paged.TotalCount 筆</span>
+<div class="page-head">
+    <div class="ph-title">
+        <h2>產品</h2>
+        <p>產品目錄與庫存狀態（唯讀）。</p>
+    </div>
+    <div class="ph-actions">
+        <span class="badge badge-muted">共 @paged.TotalCount 筆</span>
+    </div>
 </div>
 
 @* 分類 chip 列：全部 + 各分類；目前選取的高亮。*@

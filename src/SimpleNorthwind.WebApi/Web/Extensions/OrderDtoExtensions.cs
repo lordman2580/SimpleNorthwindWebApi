@@ -1,6 +1,6 @@
 using SimpleNorthwind.Application.Orders;
 
-namespace SimpleNorthwind.WebApi.Web;
+namespace SimpleNorthwind.WebApi.Web.Extensions;
 
 /// <summary>
 /// 訂單金額的前端衍生計算（單一事實）。折扣為百分比（0..100）；小計 = 單價 × 數量 × (1 − 折扣/100)。

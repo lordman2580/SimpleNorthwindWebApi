@@ -3,122 +3,26 @@
     ViewData["Title"] = "總覽";
 }
 
-<h1 class="h3 fw-bold mb-4">總覽</h1>
-
-<div class="row g-3 mb-4">
-    <div class="col-6 col-lg-3">
-        <div class="kpi-card">
-            <div class="kpi-value">@Model.OrderCount</div>
-            <div class="kpi-label">訂單數</div>
-        </div>
+<div class="page-head">
+    <div class="ph-title">
+        <h2>營運總覽</h2>
+        <p>訂單、客戶與庫存的即時概況。</p>
     </div>
-    <div class="col-6 col-lg-3">
-        <div class="kpi-card">
-            <div class="kpi-value">@Model.CustomerCount</div>
-            <div class="kpi-label">客戶數</div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="kpi-card">
-            <div class="kpi-value">@Model.OpenOrderCount</div>
-            <div class="kpi-label">未結訂單</div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="kpi-card">
-            <div class="kpi-value">@Model.Revenue.ToString("C0")</div>
-            <div class="kpi-label">本期營收</div>
-        </div>
+    <div class="ph-actions">
+        <span id="liveDot" class="live-dot" title="即時連線中" hidden>即時</span>
+        <a href="/orders/create" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M11 11V5h2v6h6v2h-6v6h-2v-6H5v-2h6Z"/></svg>
+            新增訂單
+        </a>
     </div>
 </div>
 
-<div class="row g-3">
-    <div class="col-12 col-lg-7">
-        <div class="card h-100">
-            <div class="card-header fw-semibold">最新訂單</div>
-            <div class="card-body p-0">
-                @if (Model.RecentOrders.Count == 0)
-                {
-                    <p class="text-muted m-3 mb-3">無資料</p>
-                }
-                else
-                {
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead>
-                                <tr>
-                                    <th>訂單</th>
-                                    <th>客戶</th>
-                                    <th>員工</th>
-                                    <th>訂購日</th>
-                                    <th>狀態</th>
-                                    <th class="text-end">金額</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var o in Model.RecentOrders)
-                                {
-                                    <tr>
-                                        <td><a href="/orders/@o.OrderId" class="text-teal text-decoration-none">訂單 #@o.OrderId</a></td>
-                                        <td>@o.CustomerName</td>
-                                        <td>@o.EmployeeName</td>
-                                        <td>@o.OrderDate.ToString(DateFmt.Date)</td>
-                                        <td><status-badge status="@o.Status" /></td>
-                                        <td class="text-end">@o.Total.ToString("C0")</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    </div>
-                }
-            </div>
-        </div>
-    </div>
-
-    <div class="col-12 col-lg-5">
-        <div class="card mb-3">
-            <div class="card-header fw-semibold">庫存預警</div>
-            <div class="card-body p-0">
-                @if (Model.LowStock.Count == 0)
-                {
-                    <p class="text-muted m-3 mb-3">無資料</p>
-                }
-                else
-                {
-                    <ul class="list-group list-group-flush">
-                        @foreach (var s in Model.LowStock)
-                        {
-                            var stockCss = s.StockStatus == "缺貨" ? "bg-danger" : "bg-warning text-dark";
-                            <li class="list-group-item d-flex justify-content-between align-items-center">
-                                <div>
-                                    <div class="fw-semibold">@s.ProductName</div>
-                                    <small class="text-muted">@s.CategoryName</small>
-                                </div>
-                                <div class="text-end">
-                                    <div>庫存 @s.Quantities</div>
-                                    <span class="status-badge badge @stockCss">@s.StockStatus</span>
-                                </div>
-                            </li>
-                        }
-                    </ul>
-                }
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-header fw-semibold">今日稽核</div>
-            <div class="card-body">
-                <div class="d-flex justify-content-around text-center">
-                    <div>
-                        <div class="kpi-value">@Model.AuditTotalToday 筆</div>
-                        <div class="kpi-label">總計</div>
-                    </div>
-                    <div>
-                        <div class="kpi-value text-danger">@Model.AuditErrorToday 筆</div>
-                        <div class="kpi-label">異常</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+@* 即時刷新目標：dashboard-live.js 收到稽核事件 → 經 /dashboard/body 重抓並換新。 *@
+<div id="dashboardBody">
+    <partial name="~/Web/Views/Home/_DashboardBody.cshtml" model="Model" />
 </div>
+
+@section Scripts {
+    <script src="~/lib/signalr/signalr.min.js"></script>
+    <script src="~/js/dashboard-live.js" asp-append-version="true"></script>
+}

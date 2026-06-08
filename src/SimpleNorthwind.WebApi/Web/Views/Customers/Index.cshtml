@@ -13,12 +13,17 @@
     string SortHref(string field) => BuildQuery(sort: field, desc: SortHeaders.NextDesc(field, Model.SortBy, Model.Desc), p: 1);
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 mb-0">客戶</h1>
-    <a href="/customers/create" class="btn btn-teal">新增客戶</a>
+<div class="page-head">
+    <div class="ph-title">
+        <h2>客戶</h2>
+        <p>客戶基本資料與訂單往來紀錄。</p>
+    </div>
+    <div class="ph-actions">
+        <a href="/customers/create" class="btn btn-primary">新增客戶</a>
+    </div>
 </div>
 
-<div class="card shadow-sm border-0">
+<div class="card">
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
             <thead class="table-light">

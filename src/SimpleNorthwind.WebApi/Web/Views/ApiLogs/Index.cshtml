@@ -3,42 +3,16 @@
     ViewData["Title"] = "API 稽核";
     var f = Model.Filter;
     var p = Model.Page;
-
-    // 分頁連結：保留目前過濾條件，覆寫 page（編碼走 QueryString.Build）。
-    string PageHref(int page) => QueryString.Build("/apilogs",
-        ("userId", f.UserId),
-        ("method", f.Method),
-        ("onlyErrors", f.OnlyErrors ? "true" : null),
-        ("from", f.From?.ToString("yyyy-MM-ddTHH:mm")),
-        ("to", f.To?.ToString("yyyy-MM-ddTHH:mm")),
-        ("pageSize", p.PageSize),
-        ("page", page));
-
-    string MethodBadge(string method) => method?.ToUpperInvariant() switch
-    {
-        "GET" => "bg-secondary",
-        "POST" => "bg-success",
-        "PUT" => "bg-warning text-dark",
-        "DELETE" => "bg-danger",
-        _ => "bg-light text-dark border"
-    };
-
-    string StatusBadge(int? status) => status switch
-    {
-        >= 500 => "bg-danger",
-        >= 400 => "bg-warning text-dark",
-        _ => "bg-success"
-    };
 }
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <div>
-        <h1 class="h3 mb-1">API 稽核</h1>
-        <p class="text-muted small mb-0">系統所有 API 呼叫的稽核紀錄（唯讀）。點「檢視」可展開完整回應內容。</p>
+<div class="page-head">
+    <div class="ph-title">
+        <h2>API 稽核</h2>
+        <p>系統所有 API 呼叫的稽核紀錄（唯讀）。點「檢視」可展開完整回應內容。</p>
     </div>
 </div>
 
-<div class="card border-0 shadow-sm mb-3">
+<div class="card mb-3">
     <div class="card-body">
         <form method="get" asp-controller="ApiLogsUi" asp-action="Index" class="row g-3 align-items-end">
             <input type="hidden" name="pageSize" value="@p.PageSize" />
@@ -95,60 +69,26 @@
                     <th>結果</th>
                 </tr>
             </thead>
-            <tbody id="logRows">
+            <tbody id="logRows" data-total="@p.TotalCount" data-loaded="@p.Items.Count" data-page="@p.Page" data-page-size="@p.PageSize">
                 @if (p.TotalCount == 0)
                 {
                     <tr id="logEmpty"><td colspan="8" class="text-center text-muted py-5">查無符合條件的稽核紀錄。</td></tr>
                 }
-                @foreach (var log in p.Items)
-                {
-                    <tr>
-                        <td class="text-nowrap small">@log.SummaryDate.ToString(DateFmt.DateTime)</td>
-                        <td><span class="badge @MethodBadge(log.Method)">@log.Method</span></td>
-                        <td class="small"><code>@log.Path</code></td>
-                        <td>
-                            @if (log.ResponseStatus is null)
-                            {
-                                <span class="text-muted">—</span>
-                            }
-                            else
-                            {
-                                <span class="badge @StatusBadge(log.ResponseStatus)">@log.ResponseStatus</span>
-                            }
-                        </td>
-                        <td>@(log.UserName ?? "系統 / 匿名")</td>
-                        <td class="small text-muted">@log.ClientIp.DisplayOrDash()</td>
-                        <td class="text-end small">@(log.DurationMs is null ? "—" : $"{log.DurationMs} ms")</td>
-                        <td class="small">
-                            @if (string.IsNullOrEmpty(log.ResponseResultFull))
-                            {
-                                <span class="text-muted">—</span>
-                            }
-                            else
-                            {
-                                <div class="d-flex align-items-center gap-2">
-                                    <span class="text-truncate d-inline-block" style="max-width:260px;">@log.ResponseResultPreview</span>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary js-view-result flex-shrink-0"
-                                            data-result="@log.ResponseResultFull">檢視</button>
-                                </div>
-                            }
-                        </td>
-                    </tr>
-                }
+                <partial name="~/Web/Views/ApiLogs/_ApiLogRows.cshtml" model="p.Items" />
             </tbody>
         </table>
     </div>
 </div>
 
-@if (p.TotalCount > 0)
-{
-    <div class="d-flex flex-wrap justify-content-between align-items-center mt-3">
-        <div class="text-muted small">
-            顯示第 @p.FirstItemIndex–@p.LastItemIndex 筆，共 @p.TotalCount 筆
-        </div>
-        <partial name="~/Web/Views/Shared/_Pagination.cshtml" model="@(new PaginationModel { Page = p.Page, TotalPages = p.TotalPages, HasPrevious = p.HasPrevious, HasNext = p.HasNext, PageHref = PageHref })" />
+@* 捲動載入 footer：載入動畫 / 全部載入完 / 進度。分頁改由 apilog-scroll.js 隨捲動取下一批。 *@
+<div class="inf-footer">
+    <div id="logLoader" class="inf-loader" hidden>
+        <span class="inf-dot"></span><span class="inf-dot"></span><span class="inf-dot"></span>
+        載入更早的紀錄…
     </div>
-}
+    <div id="logEnd" class="inf-end" hidden>已載入全部紀錄</div>
+    <div id="logStatus" class="inf-status">@(p.TotalCount == 0 ? "" : $"已顯示 {p.Items.Count} / {p.TotalCount} 筆")</div>
+</div>
 
 <!-- 共用結果檢視彈窗 -->
 <div class="modal fade" id="resultModal" tabindex="-1" aria-labelledby="resultModalLabel" aria-hidden="true">
@@ -175,7 +115,13 @@
     to = f.To?.ToString("yyyy-MM-ddTHH:mm")
 }))</script>
 
+@* 返回最上層：捲動超過一定距離後顯示，點擊回到內容頂端。 *@
+<button type="button" id="toTopBtn" class="to-top" aria-label="返回最上層" title="返回最上層" hidden>
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 6.8 5.4 13.4 4 12l8-8 8 8-1.4 1.4L12 6.8ZM11 19v-9h2v9h-2Z"/></svg>
+</button>
+
 @section Scripts {
     <script src="~/lib/signalr/signalr.min.js"></script>
     <script src="~/js/apilog-live.js" asp-append-version="true"></script>
+    <script src="~/js/apilog-scroll.js" asp-append-version="true"></script>
 }

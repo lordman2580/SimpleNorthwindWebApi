@@ -251,7 +251,7 @@ public sealed class OrderService(
             StatusOf(h.IsCanceled, h.IsPaidoff),
             details.Select(d => new OrderDetailDto(d.ProductId, d.ProductName, d.UnitPrice, d.OrderQuantities, d.Discount, d.Version)).ToList());
 
-    /// <summary>由 is_* 推導訂單狀態（UD9）：已取消 / 已付清 / 正常。</summary>
+    /// <summary>由 is_* 推導訂單狀態（UD9）：Canceled / PaidOff / Normal（標準英文鍵；顯示文字與顏色由 StatusBadgeTagHelper 統一對映）。</summary>
     private static string StatusOf(bool isCanceled, bool isPaidoff) =>
-        isCanceled ? "已取消" : isPaidoff ? "已付清" : "正常";
+        isCanceled ? "Canceled" : isPaidoff ? "PaidOff" : "Normal";
 }

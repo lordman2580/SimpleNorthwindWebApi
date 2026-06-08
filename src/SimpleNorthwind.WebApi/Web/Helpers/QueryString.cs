@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace SimpleNorthwind.WebApi.Web;
+namespace SimpleNorthwind.WebApi.Web.Helpers;
 
 /// <summary>
 /// 列表頁查詢字串組裝（單一事實）：保留目前過濾條件、覆寫指定鍵；null/空白值略過、值一律 URL 編碼。

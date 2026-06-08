@@ -63,6 +63,23 @@ public sealed class UiRenderingTests(CustomWebApplicationFactory factory)
     }
 
     [Fact]
+    public async Task OrdersList_StatusColumn_RendersColoredChineseLabel_NotEmptyFallback()
+    {
+        var client = await LoginUiAsync();
+        var html = await GetHtmlAsync(client, "/orders");
+
+        // badge 必須是「成對標籤 + 文字內容」<span ...>未結清</span>。
+        // 註：不可只斷言 ShouldContain("未結清") —— 狀態頁籤也叫「未結清」會誤判；
+        // 必含 </span> 才能確定是 badge 本體而非 <a> 頁籤，並抓出自閉合 <span ... /> 把文字丟掉的回歸。
+        html.ShouldContain("未結清</span>");
+        html.ShouldContain("status-badge badge bg-warning");
+
+        // 回歸防線：badge 不可渲染成自閉合空 span（會吞掉文字 → 狀態欄空白）。
+        html.ShouldNotContain("class=\"status-badge badge bg-warning\" />");
+        html.ShouldNotContain(">正常</span>"); // 舊顯示文字已改為「未結清」
+    }
+
+    [Fact]
     public async Task OrdersList_EmptyRowTagHelper_IsBound_WhenNoMatch()
     {
         var client = await LoginUiAsync();
